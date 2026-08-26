@@ -10,7 +10,14 @@
 package com.rgerva.circuitworks;
 
 import com.mojang.logging.LogUtils;
+import com.rgerva.circuitworks.block.ModBlocks;
+import com.rgerva.circuitworks.block.entity.ModBlockEntities;
 import com.rgerva.circuitworks.config.ModConfig;
+import com.rgerva.circuitworks.creative.ModCreativeModeTabs;
+import com.rgerva.circuitworks.entity.ModEntities;
+import com.rgerva.circuitworks.item.ModItems;
+import com.rgerva.circuitworks.menu.ModMenuTypes;
+import com.rgerva.circuitworks.recipe.ModRecipes;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModContainer;
@@ -28,7 +35,21 @@ public class CircuitWorks {
     public CircuitWorks(IEventBus modEventBus, ModContainer modContainer) {
         modEventBus.addListener(this::commonSetup);
 
+        ModCreativeModeTabs.register(modEventBus);
+
+        ModItems.register(modEventBus);
+        ModBlocks.register(modEventBus);
+
+        ModEntities.register(modEventBus);
+        ModRecipes.register(modEventBus);
+
+        ModBlockEntities.register(modEventBus);
+        ModMenuTypes.register(modEventBus);
+
         NeoForge.EVENT_BUS.register(this);
+
+        // Register the item to a creative tab
+        modEventBus.addListener(ModCreativeModeTabs::addCreative);
 
         // Register our mod's ModConfigSpec so that FML can create and load the config file for us
         modContainer.registerConfig(net.neoforged.fml.config.ModConfig.Type.COMMON, ModConfig.SPEC);
@@ -36,6 +57,7 @@ public class CircuitWorks {
 
     private void commonSetup(final FMLCommonSetupEvent event) {
         LOGGER.info("HELLO FROM COMMON SETUP");
+        LOGGER.info("{}", ModConfig.magicNumber);
     }
 
 

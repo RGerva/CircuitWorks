@@ -14,5 +14,19 @@
 
 package com.rgerva.circuitworks.datagen;
 
-public class ModModelProvider {
+import com.rgerva.circuitworks.CircuitWorks;
+import net.minecraft.client.data.models.BlockModelGenerators;
+import net.minecraft.client.data.models.ItemModelGenerators;
+import net.minecraft.client.data.models.ModelProvider;
+import net.minecraft.data.PackOutput;
+
+public class ModModelProvider extends ModelProvider {
+    public ModModelProvider(PackOutput output) {
+        super(output, CircuitWorks.MOD_ID);
+    }
+
+    @Override
+    protected void registerModels(BlockModelGenerators blockModels, ItemModelGenerators itemModels) {
+
+    }
 }

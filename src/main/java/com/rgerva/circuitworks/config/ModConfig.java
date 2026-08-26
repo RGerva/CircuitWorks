@@ -36,6 +36,5 @@ public class ModConfig {
     @SubscribeEvent
     static void onLoad(final ModConfigEvent event) {
         magicNumber = MAGIC_NUMBER.get();
-        CircuitWorks.LOGGER.info("MAGIC NUMBER, {}", magicNumber);
     }
 }

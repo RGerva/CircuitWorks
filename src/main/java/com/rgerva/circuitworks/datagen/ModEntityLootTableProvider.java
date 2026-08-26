@@ -14,5 +14,27 @@
 
 package com.rgerva.circuitworks.datagen;
 
-public class ModEntityLootTableProvider {
+import com.rgerva.circuitworks.entity.ModEntities;
+import net.minecraft.core.Holder;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.data.loot.EntityLootSubProvider;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.flag.FeatureFlags;
+
+import java.util.stream.Stream;
+
+public class ModEntityLootTableProvider extends EntityLootSubProvider {
+    public ModEntityLootTableProvider(HolderLookup.Provider registries) {
+        super(FeatureFlags.REGISTRY.allFlags(), registries);
+    }
+
+    @Override
+    public void generate() {
+
+    }
+
+    @Override
+    protected Stream<EntityType<?>> getKnownEntityTypes() {
+        return ModEntities.ENTITY_TYPES.getEntries().stream().map(Holder::value);
+    }
 }

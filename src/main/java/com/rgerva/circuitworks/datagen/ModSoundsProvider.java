@@ -14,5 +14,22 @@
 
 package com.rgerva.circuitworks.datagen;
 
-public class ModSoundsProvider {
+import com.rgerva.circuitworks.CircuitWorks;
+import net.minecraft.data.PackOutput;
+import net.neoforged.neoforge.common.data.SoundDefinitionsProvider;
+
+public class ModSoundsProvider extends SoundDefinitionsProvider {
+    /**
+     * Creates a new instance of this data provider.
+     *
+     * @param output The {@linkplain PackOutput} instance provided by the data generator.
+     */
+    protected ModSoundsProvider(PackOutput output) {
+        super(output, CircuitWorks.MOD_ID);
+    }
+
+    @Override
+    public void registerSounds() {
+
+    }
 }
