@@ -7,9 +7,7 @@
  *
  * <p>GitHub: https://github.com/RGerva
  *
-  * <p>Licensed under the MIT License.
- *
- * <p>Licensed under the GNU General Public License, Version 3.0.
+ * <p>All Rights Reserved.
  */
 
 #if (${PACKAGE_NAME} && ${PACKAGE_NAME} != "")package ${PACKAGE_NAME};

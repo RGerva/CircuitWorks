@@ -31,7 +31,7 @@ public class ModCreativeModeTabs {
             DeferredRegister.create(Registries.CREATIVE_MODE_TAB, CircuitWorks.MOD_ID);
 
 
-    public static final Supplier<CreativeModeTab> CIRCUITWORKS_ITEMS_TAB = CREATIVE_MODE_TABS.register("tab.ezfarm",
+    public static final Supplier<CreativeModeTab> CIRCUITWORKS_ITEMS_TAB = CREATIVE_MODE_TABS.register("circuitworks",
             () -> CreativeModeTab.builder().icon(() -> new ItemStack(Blocks.AIR))
                     .title(Component.translatable("itemGroup.circuit_works"))
                     .displayItems((itemDisplayParameters, output) -> {

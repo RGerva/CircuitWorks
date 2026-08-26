@@ -50,6 +50,6 @@ public class ModEquipmentAsset implements DataProvider {
 
     @Override
     public String getName() {
-        return "EzFarm Equipment Definitions";
+        return "Circuit Works Equipment Definitions";
     }
 }

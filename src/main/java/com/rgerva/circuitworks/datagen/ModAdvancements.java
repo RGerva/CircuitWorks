@@ -26,10 +26,10 @@ import java.util.function.Consumer;
 
 public class ModAdvancements extends AdvancementProvider {
     public ModAdvancements(PackOutput output, CompletableFuture<HolderLookup.Provider> registries) {
-        super(output, registries, List.of(new EzFarmAdvancements()));
+        super(output, registries, List.of(new CWAdvancements()));
     }
 
-    public static class EzFarmAdvancements implements AdvancementSubProvider {
+    public static class CWAdvancements implements AdvancementSubProvider {
         @Override
         public void generate(HolderLookup.Provider registries, Consumer<AdvancementHolder> output) {
 

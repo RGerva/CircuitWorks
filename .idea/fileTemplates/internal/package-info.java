@@ -7,9 +7,9 @@
  *
  * <p>GitHub: https://github.com/RGerva
  *
- * <p>Copyright (c) ${YEAR} @RGerva. All Rights Reserved.
+ * <p>Copyright (c) ${YEAR} @RGerva.
  *
- * <p>Licensed under the MIT License.
+ * <p>All Rights Reserved.
  */
 
 #parse("File Header.java")
