@@ -15,6 +15,7 @@
 package com.rgerva.circuitworks.datagen;
 
 import com.rgerva.circuitworks.CircuitWorks;
+import com.rgerva.circuitworks.block.ModBlocks;
 import net.minecraft.client.data.models.BlockModelGenerators;
 import net.minecraft.client.data.models.ItemModelGenerators;
 import net.minecraft.client.data.models.ModelProvider;
@@ -27,6 +28,6 @@ public class ModModelProvider extends ModelProvider {
 
     @Override
     protected void registerModels(BlockModelGenerators blockModels, ItemModelGenerators itemModels) {
-
+        blockModels.createTrivialCube(ModBlocks.WIRE.get());
     }
 }

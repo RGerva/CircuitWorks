@@ -15,11 +15,13 @@
 package com.rgerva.circuitworks.block;
 
 import com.rgerva.circuitworks.CircuitWorks;
+import com.rgerva.circuitworks.block.custom.WireBlock;
 import com.rgerva.circuitworks.item.ModItems;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredBlock;
@@ -29,6 +31,11 @@ import java.util.function.Function;
 
 public class ModBlocks {
     public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBlocks(CircuitWorks.MOD_ID);
+
+    public static final DeferredBlock<WireBlock> WIRE = registerBlock("wire",
+            properties -> new WireBlock(properties
+                    .strength(0.5F)
+                    .sound(SoundType.METAL)));
 
     //==================================================================================================================
     public static ResourceKey<Block> getRK(Block block) {

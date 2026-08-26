@@ -10,11 +10,13 @@
 package com.rgerva.circuitworks;
 
 import com.mojang.logging.LogUtils;
+import com.rgerva.circuitworks.attachment.ModAttachments;
 import com.rgerva.circuitworks.block.ModBlocks;
 import com.rgerva.circuitworks.block.entity.ModBlockEntities;
 import com.rgerva.circuitworks.config.ModConfig;
 import com.rgerva.circuitworks.creative.ModCreativeModeTabs;
 import com.rgerva.circuitworks.entity.ModEntities;
+import com.rgerva.circuitworks.event.ElectricalWorldEvents;
 import com.rgerva.circuitworks.item.ModItems;
 import com.rgerva.circuitworks.menu.ModMenuTypes;
 import com.rgerva.circuitworks.recipe.ModRecipes;
@@ -35,16 +37,20 @@ public class CircuitWorks {
     public CircuitWorks(IEventBus modEventBus, ModContainer modContainer) {
         modEventBus.addListener(this::commonSetup);
 
-        ModCreativeModeTabs.register(modEventBus);
+        ModAttachments.register(modEventBus);
 
-        ModItems.register(modEventBus);
         ModBlocks.register(modEventBus);
+        ModItems.register(modEventBus);
+
+        ModCreativeModeTabs.register(modEventBus);
 
         ModEntities.register(modEventBus);
         ModRecipes.register(modEventBus);
 
         ModBlockEntities.register(modEventBus);
         ModMenuTypes.register(modEventBus);
+
+        ElectricalWorldEvents.register();
 
         NeoForge.EVENT_BUS.register(this);
 

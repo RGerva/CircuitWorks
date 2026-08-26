@@ -1,3 +1,4 @@
 {
-  "itemGroup.circuit_works": "Circuit Works Tab"
+  "itemGroup.circuit_works": "Circuit Works Tab",
+  "block.circuitworks.wire": "Wire"
 }
