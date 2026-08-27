@@ -15,87 +15,155 @@
 package com.rgerva.circuitworks.electrical.world;
 
 import com.mojang.serialization.Codec;
-import com.mojang.serialization.MapCodec;
-
+import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.core.BlockPos;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public record WireChunkData(
-        Set<Long> wirePositions
+        Map<Long, WirePersistentState> wireStates
 ) {
 
-    public static final MapCodec<WireChunkData> CODEC =
-            Codec.LONG
-                    .listOf()
-                    .fieldOf("wire_positions")
-                    .xmap(
-                            values ->
-                                    new WireChunkData(
-                                            new HashSet<>(values)
-                                    ),
-                            data ->
-                                    List.copyOf(
-                                            data.wirePositions()
-                                    )
-                    );
+    private record WireEntry(
+            long position,
+            WirePersistentState state
+    ) {
+        private static final Codec<WireEntry> CODEC =
+                RecordCodecBuilder.create(instance -> instance.group(
+                        Codec.LONG.fieldOf("position")
+                                .forGetter(WireEntry::position),
+
+                        WirePersistentState.CODEC.fieldOf("state")
+                                .forGetter(WireEntry::state)
+                ).apply(instance, WireEntry::new));
+    }
+
+    public static final com.mojang.serialization.MapCodec<WireChunkData> CODEC =
+            RecordCodecBuilder.mapCodec(instance -> instance.group(
+                    WireEntry.CODEC.listOf()
+                            .optionalFieldOf("wire_states", List.of())
+                            .forGetter(WireChunkData::serializedEntries),
+
+                    /*
+                     * Campo antigo.
+                     *
+                     * Mantemos leitura para não quebrar os
+                     * mundos criados até agora.
+                     */
+                    Codec.LONG.listOf()
+                            .optionalFieldOf("wire_positions", List.of())
+                            .forGetter(data -> List.of())
+            ).apply(instance, WireChunkData::fromSerialized));
 
     public WireChunkData {
-        wirePositions =
-                Set.copyOf(wirePositions);
+        wireStates = Map.copyOf(wireStates);
     }
 
     public static WireChunkData empty() {
-        return new WireChunkData(
-                Set.of()
-        );
+        return new WireChunkData(Map.of());
     }
 
-    public boolean contains(
-            BlockPos pos
+    private static WireChunkData fromSerialized(
+            List<WireEntry> entries,
+            List<Long> legacyPositions
     ) {
-        return wirePositions.contains(
-                pos.asLong()
-        );
+        Map<Long, WirePersistentState> states = new HashMap<>();
+
+        /*
+         * Saves antigos não possuem temperatura/status.
+         */
+        for (long position : legacyPositions) {
+            states.put(position, WirePersistentState.defaultState());
+        }
+
+        /*
+         * O formato novo prevalece caso ambos existam.
+         */
+        for (WireEntry entry : entries) {
+            states.put(entry.position(), entry.state());
+        }
+
+        return new WireChunkData(states);
+    }
+
+    private List<WireEntry> serializedEntries() {
+        return wireStates.entrySet()
+                .stream()
+                .map(entry -> new WireEntry(
+                        entry.getKey(),
+                        entry.getValue()
+                ))
+                .toList();
+    }
+
+    public Set<Long> wirePositions() {
+        return Set.copyOf(wireStates.keySet());
+    }
+
+    public Optional<WirePersistentState> getState(BlockPos pos) {
+        return Optional.ofNullable(wireStates.get(pos.asLong()));
+    }
+
+    public boolean contains(BlockPos pos) {
+        return wireStates.containsKey(pos.asLong());
+    }
+
+    public WireChunkData withWire(BlockPos pos) {
+        return withWire(pos, WirePersistentState.defaultState());
     }
 
     public WireChunkData withWire(
-            BlockPos pos
+            BlockPos pos,
+            WirePersistentState state
     ) {
-        Set<Long> positions =
-                new HashSet<>(
-                        wirePositions
-                );
+        long packedPos = pos.asLong();
 
-        positions.add(
-                pos.asLong()
-        );
+        if (wireStates.containsKey(packedPos)) {
+            return this;
+        }
 
-        return new WireChunkData(
-                positions
-        );
+        Map<Long, WirePersistentState> updated =
+                new HashMap<>(wireStates);
+
+        updated.put(packedPos, state);
+
+        return new WireChunkData(updated);
     }
 
-    public WireChunkData withoutWire(
-            BlockPos pos
+    public WireChunkData withState(
+            BlockPos pos,
+            WirePersistentState state
     ) {
-        Set<Long> positions =
-                new HashSet<>(
-                        wirePositions
-                );
+        long packedPos = pos.asLong();
 
-        positions.remove(
-                pos.asLong()
-        );
+        if (!wireStates.containsKey(packedPos)) {
+            return this;
+        }
 
-        return new WireChunkData(
-                positions
-        );
+        Map<Long, WirePersistentState> updated =
+                new HashMap<>(wireStates);
+
+        updated.put(packedPos, state);
+
+        return new WireChunkData(updated);
+    }
+
+    public WireChunkData withoutWire(BlockPos pos) {
+        long packedPos = pos.asLong();
+
+        if (!wireStates.containsKey(packedPos)) {
+            return this;
+        }
+
+        Map<Long, WirePersistentState> updated =
+                new HashMap<>(wireStates);
+
+        updated.remove(packedPos);
+
+        return new WireChunkData(updated);
     }
 
     public int size() {
-        return wirePositions.size();
+        return wireStates.size();
     }
 }

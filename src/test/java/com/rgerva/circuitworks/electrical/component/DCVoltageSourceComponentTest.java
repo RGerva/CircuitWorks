@@ -368,4 +368,64 @@ class DCVoltageSourceComponentTest {
                 source.getElectricalState()
         );
     }
+
+    @Test
+    void restoredFailedSourceShouldRemainFailed() {
+        DCVoltageSourceComponent source =
+                new DCVoltageSourceComponent(
+                        12.0,
+                        0.1,
+                        10.0,
+                        DCVoltageSourceComponent.DEFAULT_THERMAL_PROPERTIES,
+                        DCVoltageSourceComponent.DEFAULT_THERMAL_LIMITS,
+                        145.0,
+                        ComponentOperationalStatus.FAILED
+                );
+
+        assertFalse(source.isOperational());
+
+        assertEquals(
+                ComponentOperationalStatus.FAILED,
+                source.getOperationalStatus()
+        );
+
+        assertEquals(
+                145.0,
+                source.getThermalState().temperatureCelsius(),
+                DELTA
+        );
+
+        assertEquals(
+                0.0,
+                source.getElectricalState().current(),
+                DELTA
+        );
+    }
+
+    @Test
+    void restoredHotSourceShouldRemainOperational() {
+        DCVoltageSourceComponent source =
+                new DCVoltageSourceComponent(
+                        12.0,
+                        0.1,
+                        10.0,
+                        DCVoltageSourceComponent.DEFAULT_THERMAL_PROPERTIES,
+                        DCVoltageSourceComponent.DEFAULT_THERMAL_LIMITS,
+                        75.0,
+                        ComponentOperationalStatus.OPERATIONAL
+                );
+
+        assertTrue(source.isOperational());
+
+        assertEquals(
+                75.0,
+                source.getThermalState().temperatureCelsius(),
+                DELTA
+        );
+
+        assertEquals(
+                ThermalStatus.HOT,
+                source.getThermalStatus()
+        );
+    }
 }

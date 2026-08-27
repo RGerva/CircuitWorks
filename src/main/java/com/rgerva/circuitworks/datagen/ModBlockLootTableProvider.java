@@ -41,6 +41,8 @@ public class ModBlockLootTableProvider extends BlockLootSubProvider {
     @Override
     protected void generate() {
         dropSelf(ModBlocks.WIRE.get());
+        dropSelf(ModBlocks.DC_VOLTAGE_SOURCE.get());
+        dropSelf(ModBlocks.RESISTIVE_LOAD.get());
     }
 
     protected LootTable.Builder createMultipleOreDrops(Block pBlock, Item item, float minDrops, float maxDrops) {

@@ -29,5 +29,7 @@ public class ModModelProvider extends ModelProvider {
     @Override
     protected void registerModels(BlockModelGenerators blockModels, ItemModelGenerators itemModels) {
         blockModels.createTrivialCube(ModBlocks.WIRE.get());
+        blockModels.createTrivialCube(ModBlocks.DC_VOLTAGE_SOURCE.get());
+        blockModels.createTrivialCube(ModBlocks.RESISTIVE_LOAD.get());
     }
 }

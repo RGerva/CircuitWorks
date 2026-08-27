@@ -104,33 +104,42 @@ public class WireComponent implements IResistiveComponent, ICurrentLimitedCompon
             ThermalLimits thermalLimits,
             double initialTemperature
     ) {
-        if (!Double.isFinite(resistance)
-                || resistance < 0.0) {
+        this(
+                resistance,
+                maxCurrent,
+                thermalProperties,
+                thermalLimits,
+                initialTemperature,
+                ComponentOperationalStatus.OPERATIONAL
+        );
+    }
 
-            throw new IllegalArgumentException(
-                    "Wire resistance must be a finite value greater than or equal to zero."
-            );
+    public WireComponent(
+            double resistance,
+            double maxCurrent,
+            ThermalProperties thermalProperties,
+            ThermalLimits thermalLimits,
+            double initialTemperature,
+            ComponentOperationalStatus operationalStatus
+    ) {
+        if (!Double.isFinite(resistance) || resistance < 0.0) {
+            throw new IllegalArgumentException("Resistance must be finite and >= 0.");
         }
 
-        if (Double.isNaN(maxCurrent)
-                || maxCurrent <= 0.0) {
-
-            throw new IllegalArgumentException(
-                    "Maximum current must be greater than zero."
-            );
+        if (Double.isNaN(maxCurrent) || maxCurrent <= 0.0) {
+            throw new IllegalArgumentException("Max current must be > 0.");
         }
 
         this.resistance = resistance;
         this.maxCurrent = maxCurrent;
+        this.thermalProperties = Objects.requireNonNull(thermalProperties);
+        this.thermalLimits = Objects.requireNonNull(thermalLimits);
+        this.thermalState = new ThermalState(initialTemperature);
+        this.operationalStatus = Objects.requireNonNull(operationalStatus);
 
-        this.thermalProperties =
-                Objects.requireNonNull(thermalProperties);
-
-        this.thermalLimits =
-                Objects.requireNonNull(thermalLimits);
-
-        this.thermalState =
-                new ThermalState(initialTemperature);
+        if (!operationalStatus.isOperational()) {
+            this.state = ElectricalState.ZERO;
+        }
     }
 
     @Override

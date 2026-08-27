@@ -36,6 +36,8 @@ public class ModCreativeModeTabs {
                     .title(Component.translatable("itemGroup.circuit_works"))
                     .displayItems((itemDisplayParameters, output) -> {
                         output.accept(ModBlocks.WIRE.get());
+                        output.accept(ModBlocks.DC_VOLTAGE_SOURCE.get());
+                        output.accept(ModBlocks.RESISTIVE_LOAD.get());
                     }).build());
 
     public static void addCreative(BuildCreativeModeTabContentsEvent event) {

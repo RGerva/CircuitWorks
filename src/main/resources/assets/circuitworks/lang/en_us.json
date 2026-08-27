@@ -1,4 +1,6 @@
 {
   "itemGroup.circuit_works": "Circuit Works Tab",
-  "block.circuitworks.wire": "Wire"
+  "block.circuitworks.wire": "Wire",
+  "block.circuitworks.dc_voltage_source": "DC Voltage Source",
+  "block.circuitworks.resistive_load": "Resistive Load"
 }

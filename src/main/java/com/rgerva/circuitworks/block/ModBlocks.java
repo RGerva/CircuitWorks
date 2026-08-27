@@ -15,6 +15,8 @@
 package com.rgerva.circuitworks.block;
 
 import com.rgerva.circuitworks.CircuitWorks;
+import com.rgerva.circuitworks.block.custom.DCVoltageSourceBlock;
+import com.rgerva.circuitworks.block.custom.ResistiveLoadBlock;
 import com.rgerva.circuitworks.block.custom.WireBlock;
 import com.rgerva.circuitworks.item.ModItems;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -35,6 +37,16 @@ public class ModBlocks {
     public static final DeferredBlock<WireBlock> WIRE = registerBlock("wire",
             properties -> new WireBlock(properties
                     .strength(0.5F)
+                    .sound(SoundType.METAL)));
+
+    public static final DeferredBlock<DCVoltageSourceBlock> DC_VOLTAGE_SOURCE = registerBlock("dc_voltage_source",
+            properties -> new DCVoltageSourceBlock(properties
+                    .strength(2.0F)
+                    .sound(SoundType.METAL)));
+
+    public static final DeferredBlock<ResistiveLoadBlock> RESISTIVE_LOAD = registerBlock("resistive_load",
+            properties -> new ResistiveLoadBlock(properties
+                    .strength(2.0F)
                     .sound(SoundType.METAL)));
 
     //==================================================================================================================

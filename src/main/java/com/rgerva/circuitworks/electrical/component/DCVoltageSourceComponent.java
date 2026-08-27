@@ -86,42 +86,60 @@ public class DCVoltageSourceComponent implements IElectricalSource, IOperational
             ThermalLimits thermalLimits,
             double initialTemperature
     ) {
-        if (!Double.isFinite(voltage)
-                || voltage < 0.0) {
+        this(
+                voltage,
+                internalResistance,
+                maxCurrent,
+                thermalProperties,
+                thermalLimits,
+                initialTemperature,
+                ComponentOperationalStatus.OPERATIONAL
+        );
+    }
 
+    public DCVoltageSourceComponent(
+            double voltage,
+            double internalResistance,
+            double maxCurrent,
+            ThermalProperties thermalProperties,
+            ThermalLimits thermalLimits,
+            double initialTemperature,
+            ComponentOperationalStatus operationalStatus
+    ) {
+        if (!Double.isFinite(voltage) || voltage < 0.0) {
             throw new IllegalArgumentException(
-                    "Voltage must be finite and greater than or equal to zero."
+                    "Voltage must be finite and >= 0."
             );
         }
 
         if (!Double.isFinite(internalResistance)
                 || internalResistance < 0.0) {
-
             throw new IllegalArgumentException(
-                    "Internal resistance must be finite and greater than or equal to zero."
+                    "Internal resistance must be finite and >= 0."
             );
         }
 
-        if (Double.isNaN(maxCurrent)
-                || maxCurrent <= 0.0) {
-
+        if (Double.isNaN(maxCurrent) || maxCurrent <= 0.0) {
             throw new IllegalArgumentException(
-                    "Maximum current must be greater than zero."
+                    "Max current must be > 0."
             );
         }
 
         this.voltage = voltage;
         this.internalResistance = internalResistance;
         this.maxCurrent = maxCurrent;
-
         this.thermalProperties =
                 Objects.requireNonNull(thermalProperties);
-
         this.thermalLimits =
                 Objects.requireNonNull(thermalLimits);
-
         this.thermalState =
                 new ThermalState(initialTemperature);
+        this.operationalStatus =
+                Objects.requireNonNull(operationalStatus);
+
+        if (!operationalStatus.isOperational()) {
+            this.state = ElectricalState.ZERO;
+        }
     }
 
     @Override
