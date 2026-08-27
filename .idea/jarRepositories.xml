@@ -41,5 +41,15 @@
       <option name="name" value="ModMaven" />
       <option name="url" value="https://modmaven.dev" />
     </remote-repository>
+    <remote-repository>
+      <option name="id" value="ModMaven" />
+      <option name="name" value="ModMaven" />
+      <option name="url" value="file:$PROJECT_DIR$/%5Bhttps:/modmaven.dev%5D(https:/modmaven.dev)" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="ModMaven" />
+      <option name="name" value="ModMaven" />
+      <option name="url" value="file:$PROJECT_DIR$/(https:/modmaven.dev)" />
+    </remote-repository>
   </component>
 </project>

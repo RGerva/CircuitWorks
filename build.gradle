@@ -20,7 +20,7 @@ repositories {
     }
     maven {
         name = "ModMaven"
-        url = "https://modmaven.dev"
+        url = uri("https://modmaven.dev")
     }
 }
 
@@ -128,7 +128,7 @@ dependencies {
 
     // Example project dependency using a sister or child project:
     // implementation project(":myproject")
-    // runtimeOnly "curse.maven:jade-${jade_id}:${jade_version}"
+    runtimeOnly "curse.maven:jade-${jade_id}:${jade_version}"
 
     testImplementation 'org.junit.jupiter:junit-jupiter-api:6.1.3'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:6.1.3'
@@ -172,12 +172,12 @@ tasks.withType(Test).configureEach {
         showStandardStreams = true
     }
 
-    finalizedBy(tasks.jacocoTestReport)
+    finalizedBy(tasks.named('jacocoTestReport'))
 }
 
 jacocoTestReport {
     group = 'verification'
-    dependsOn tasks.test
+    dependsOn tasks.named('test')
 
     reports {
         html.required.set(true)
@@ -223,7 +223,7 @@ spotless {
 }
 
 javadoc {
-    destinationDir = file("${rootProject.projectDir}/docs/javadoc")
+    setDestinationDir(file("${rootProject.projectDir}/docs/javadoc"))
 }
 
 // Example configuration to allow publishing using the maven-publish plugin
@@ -235,7 +235,7 @@ publishing {
     }
     repositories {
         maven {
-            url "file://${project.projectDir}/repo"
+            url = uri("file://${project.projectDir}/repo")
         }
     }
 }
