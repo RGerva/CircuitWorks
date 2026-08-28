@@ -14,17 +14,17 @@
 
 package com.rgerva.circuitworks.compat;
 
-import com.rgerva.circuitworks.CircuitWorks;
-import mezz.jei.api.recipe.types.IRecipeType;
-import net.minecraft.resources.Identifier;
-import net.minecraft.world.item.crafting.Recipe;
-import net.minecraft.world.item.crafting.RecipeHolder;
-
-public class ModJEIRecipeTypes {
-    public static <R extends Recipe<?>> IRecipeType<RecipeHolder<R>> create(String name, Class<? extends R> recipeClass) {
-        Identifier uid = Identifier.fromNamespaceAndPath(CircuitWorks.MOD_ID, name);
-        @SuppressWarnings({"unchecked", "RedundantCast"})
-        Class<? extends RecipeHolder<R>> holderClass = (Class<? extends RecipeHolder<R>>) (Object) RecipeHolder.class;
-        return IRecipeType.create(uid, holderClass);
-    }
-}
+//import com.rgerva.circuitworks.CircuitWorks;
+//import mezz.jei.api.recipe.types.IRecipeType;
+//import net.minecraft.resources.Identifier;
+//import net.minecraft.world.item.crafting.Recipe;
+//import net.minecraft.world.item.crafting.RecipeHolder;
+//
+//public class ModJEIRecipeTypes {
+//    public static <R extends Recipe<?>> IRecipeType<RecipeHolder<R>> create(String name, Class<? extends R> recipeClass) {
+//        Identifier uid = Identifier.fromNamespaceAndPath(CircuitWorks.MOD_ID, name);
+//        @SuppressWarnings({"unchecked", "RedundantCast"})
+//        Class<? extends RecipeHolder<R>> holderClass = (Class<? extends RecipeHolder<R>>) (Object) RecipeHolder.class;
+//        return IRecipeType.create(uid, holderClass);
+//    }
+//}

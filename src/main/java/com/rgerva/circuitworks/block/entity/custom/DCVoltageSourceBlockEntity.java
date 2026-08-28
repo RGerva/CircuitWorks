@@ -20,8 +20,6 @@ import com.rgerva.circuitworks.block.entity.ModBlockEntities;
 import com.rgerva.circuitworks.electrical.component.ComponentOperationalStatus;
 import com.rgerva.circuitworks.electrical.component.DCVoltageSourceComponent;
 import com.rgerva.circuitworks.electrical.world.ElectricalNetworkManager;
-
-import com.rgerva.circuitworks.electrical.world.ElectricalWorldNetwork;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -40,6 +38,8 @@ public class DCVoltageSourceBlockEntity extends BlockEntity {
 
     private DCVoltageSourceComponent sourceComponent = createDefaultSource();
 
+    private boolean electricalRegistered;
+
     public DCVoltageSourceBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.DC_VOLTAGE_SOURCE.get(), pos, state);
     }
@@ -55,48 +55,56 @@ public class DCVoltageSourceBlockEntity extends BlockEntity {
     @Override
     public void onLoad() {
         super.onLoad();
+        ensureElectricalRegistration();
 
-        if (!(level instanceof ServerLevel serverLevel)) {
-            return;
-        }
-
-        Direction positiveDirection = getBlockState().getValue(DCVoltageSourceBlock.FACING);
-
-        Direction negativeDirection = positiveDirection.getOpposite();
-
-        ElectricalNetworkManager manager = ElectricalNetworkManager.get(serverLevel);
-
-        manager.registerSource(worldPosition, sourceComponent, positiveDirection, negativeDirection);
-
-        ElectricalWorldNetwork network = manager.getElectricalWorldNetworkAt(worldPosition).orElseThrow();
-
-        CircuitWorks.LOGGER.info(
-                "[Electrical] DC source loaded at {} | V={} V | Rinternal={} ohm | Imax={} A | T={} C | status={} | +={} | -={} | sources={} | worldNetwork=#{} | wires={}",
-                worldPosition.toShortString(),
-                sourceComponent.getVoltage(),
-                sourceComponent.getInternalResistance(),
-                sourceComponent.getMaxCurrent(),
-                String.format(Locale.ROOT, "%.2f", sourceComponent.getThermalState().temperatureCelsius()),
-                sourceComponent.getOperationalStatus(),
-                positiveDirection,
-                negativeDirection,
-                manager.getSourceCount(),
-                network.id(),
-                network.getWireCount()
-        );
+//        if (!(level instanceof ServerLevel serverLevel)) {
+//            return;
+//        }
+//
+//        Direction positiveDirection = getBlockState().getValue(DCVoltageSourceBlock.FACING);
+//
+//        Direction negativeDirection = positiveDirection.getOpposite();
+//
+//        ElectricalNetworkManager manager = ElectricalNetworkManager.get(serverLevel);
+//
+//        manager.registerSource(worldPosition, sourceComponent, positiveDirection, negativeDirection);
+//
+//        ElectricalWorldNetwork network = manager.getElectricalWorldNetworkAt(worldPosition).orElseThrow();
+//
+//        CircuitWorks.LOGGER.info(
+//                "[Electrical] DC source loaded at {} | V={} V | Rinternal={} ohm | Imax={} A | T={} C | status={} | +={} | -={} | sources={} | worldNetwork=#{} | wires={}",
+//                worldPosition.toShortString(),
+//                sourceComponent.getVoltage(),
+//                sourceComponent.getInternalResistance(),
+//                sourceComponent.getMaxCurrent(),
+//                String.format(Locale.ROOT, "%.2f", sourceComponent.getThermalState().temperatureCelsius()),
+//                sourceComponent.getOperationalStatus(),
+//                positiveDirection,
+//                negativeDirection,
+//                manager.getSourceCount(),
+//                network.id(),
+//                network.getWireCount()
+//        );
     }
 
     @Override
     public void setRemoved() {
-        if (level instanceof ServerLevel serverLevel) {
-            ElectricalNetworkManager manager = ElectricalNetworkManager.get(serverLevel);
-
-            manager.unregisterSource(worldPosition);
-
-            CircuitWorks.LOGGER.info("[Electrical] DC source removed at {} | sources={}",
-                    worldPosition.toShortString(), manager.getSourceCount());
-        }
+//        if (level instanceof ServerLevel serverLevel) {
+//            ElectricalNetworkManager manager = ElectricalNetworkManager.get(serverLevel);
+//
+//            manager.unregisterSource(worldPosition);
+//
+//            CircuitWorks.LOGGER.info("[Electrical] DC source removed at {} | sources={}",
+//                    worldPosition.toShortString(), manager.getSourceCount());
+//        }
+        unregisterElectrical();
         super.setRemoved();
+    }
+
+    @Override
+    public void onChunkUnloaded() {
+        unregisterElectrical();
+        super.onChunkUnloaded();
     }
 
     @Override
@@ -140,5 +148,67 @@ public class DCVoltageSourceBlockEntity extends BlockEntity {
         } catch (IllegalArgumentException ignored) {
             return ComponentOperationalStatus.OPERATIONAL;
         }
+    }
+
+    public void ensureElectricalRegistration() {
+        if (electricalRegistered) {
+            return;
+        }
+
+        if (!(level instanceof ServerLevel serverLevel)) {
+            return;
+        }
+
+        if (isRemoved()) {
+            return;
+        }
+
+        Direction positiveDirection =
+                getBlockState().getValue(
+                        DCVoltageSourceBlock.FACING
+                );
+
+        Direction negativeDirection =
+                positiveDirection.getOpposite();
+
+        ElectricalNetworkManager manager =
+                ElectricalNetworkManager.get(serverLevel);
+
+        manager.registerSource(
+                worldPosition,
+                sourceComponent,
+                positiveDirection,
+                negativeDirection
+        );
+
+        electricalRegistered = true;
+
+        CircuitWorks.LOGGER.info(
+                "[Electrical] DC source registered at {} | V={} V | T={} C | status={} | +={} | -={}",
+                worldPosition.toShortString(),
+                sourceComponent.getVoltage(),
+                String.format(
+                        Locale.ROOT,
+                        "%.2f",
+                        sourceComponent.getThermalState()
+                                .temperatureCelsius()
+                ),
+                sourceComponent.getOperationalStatus(),
+                positiveDirection,
+                negativeDirection
+        );
+    }
+
+    private void unregisterElectrical() {
+        if (!electricalRegistered) {
+            return;
+        }
+
+        if (level instanceof ServerLevel serverLevel) {
+            ElectricalNetworkManager.get(serverLevel)
+                    .unregisterSource(worldPosition);
+        }
+
+        electricalRegistered = false;
     }
 }

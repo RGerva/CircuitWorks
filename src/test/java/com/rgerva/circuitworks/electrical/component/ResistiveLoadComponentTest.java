@@ -16,10 +16,10 @@ package com.rgerva.circuitworks.electrical.component;
 
 import com.rgerva.circuitworks.electrical.api.ElectricalPortType;
 import com.rgerva.circuitworks.electrical.api.ElectricalState;
+import com.rgerva.circuitworks.electrical.thermal.ThermalStatus;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 class ResistiveLoadComponentTest {
 
@@ -107,6 +107,85 @@ class ResistiveLoadComponentTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> new ResistiveLoadComponent(Double.NaN)
+        );
+    }
+
+    @Test
+    void resistiveLoadShouldHeatFromCurrent() {
+        ResistiveLoadComponent load =
+                new ResistiveLoadComponent(10.0);
+
+        double initialTemperature =
+                load.getThermalState()
+                        .temperatureCelsius();
+
+        load.updateElectricalState(
+                new ElectricalState(
+                        10.0,
+                        1.0
+                )
+        );
+
+        load.updateThermalState(
+                20.0,
+                1.0
+        );
+
+        assertTrue(
+                load.getThermalState()
+                        .temperatureCelsius()
+                        > initialTemperature
+        );
+    }
+
+    @Test
+    void restoredHotLoadShouldKeepThermalState() {
+        ResistiveLoadComponent load =
+                new ResistiveLoadComponent(
+                        10.0,
+                        ResistiveLoadComponent.DEFAULT_THERMAL_PROPERTIES,
+                        ResistiveLoadComponent.DEFAULT_THERMAL_LIMITS,
+                        75.0,
+                        ComponentOperationalStatus.OPERATIONAL
+                );
+
+        assertEquals(
+                75.0,
+                load.getThermalState()
+                        .temperatureCelsius(),
+                DELTA
+        );
+
+        assertEquals(
+                ThermalStatus.HOT,
+                load.getThermalStatus()
+        );
+
+        assertTrue(load.isOperational());
+    }
+
+    @Test
+    void restoredFailedLoadShouldRemainFailed() {
+        ResistiveLoadComponent load =
+                new ResistiveLoadComponent(
+                        10.0,
+                        ResistiveLoadComponent.DEFAULT_THERMAL_PROPERTIES,
+                        ResistiveLoadComponent.DEFAULT_THERMAL_LIMITS,
+                        150.0,
+                        ComponentOperationalStatus.FAILED
+                );
+
+        assertFalse(load.isOperational());
+
+        assertEquals(
+                ComponentOperationalStatus.FAILED,
+                load.getOperationalStatus()
+        );
+
+        assertEquals(
+                0.0,
+                load.getElectricalState().current(),
+                DELTA
         );
     }
 }

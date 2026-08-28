@@ -14,6 +14,7 @@
 
 package com.rgerva.circuitworks.electrical.world;
 
+import com.rgerva.circuitworks.electrical.api.ElectricalState;
 import com.rgerva.circuitworks.electrical.component.ComponentOperationalStatus;
 import com.rgerva.circuitworks.electrical.component.DCVoltageSourceComponent;
 import com.rgerva.circuitworks.electrical.component.ResistiveLoadComponent;
@@ -1211,6 +1212,157 @@ class ElectricalNetworkManagerTest {
         assertEquals(
                 0.0,
                 wire.getElectricalState().current(),
+                DELTA
+        );
+    }
+
+    @Test
+    void disconnectedResistiveLoadShouldCoolTowardAmbientTemperature() {
+        ElectricalNetworkManager manager =
+                new ElectricalNetworkManager();
+
+        ResistiveLoadComponent load =
+                new ResistiveLoadComponent(
+                        10.0,
+                        ResistiveLoadComponent.DEFAULT_THERMAL_PROPERTIES,
+                        ResistiveLoadComponent.DEFAULT_THERMAL_LIMITS,
+                        80.0,
+                        ComponentOperationalStatus.OPERATIONAL
+                );
+
+        manager.registerLoad(
+                BlockPos.ZERO,
+                load,
+                Direction.NORTH,
+                Direction.SOUTH
+        );
+
+        double before =
+                load.getThermalState()
+                        .temperatureCelsius();
+
+        manager.tickSimulation(
+                20.0,
+                1.0
+        );
+
+        double after =
+                load.getThermalState()
+                        .temperatureCelsius();
+
+        assertTrue(after < before);
+        assertTrue(after > 20.0);
+        assertEquals(
+                ElectricalState.ZERO,
+                load.getElectricalState()
+        );
+    }
+
+    @Test
+    void twoResistiveLoadsInSeriesShouldShareSameCurrent() {
+        ElectricalNetworkManager manager =
+                new ElectricalNetworkManager();
+
+        DCVoltageSourceComponent source =
+                new DCVoltageSourceComponent(
+                        12.0,
+                        0.1,
+                        10.0
+                );
+
+        ResistiveLoadComponent load1 =
+                new ResistiveLoadComponent(10.0);
+
+        ResistiveLoadComponent load2 =
+                new ResistiveLoadComponent(20.0);
+
+        BlockPos sourcePos = new BlockPos(0, 0, 0);
+        BlockPos load1Pos = new BlockPos(1, 0, 0);
+        BlockPos load2Pos = new BlockPos(2, 0, 0);
+
+        manager.registerSource(
+                sourcePos,
+                source,
+                Direction.EAST,
+                Direction.WEST
+        );
+
+        manager.registerLoad(
+                load1Pos,
+                load1,
+                Direction.WEST,
+                Direction.EAST
+        );
+
+        manager.registerLoad(
+                load2Pos,
+                load2,
+                Direction.WEST,
+                Direction.EAST
+        );
+
+        /*
+         * SOURCE + -> LOAD1 -> LOAD2
+         *                       |
+         *                       W
+         *                       |
+         * SOURCE - <- W <- W <- W
+         */
+        manager.registerWire(new BlockPos(3, 0, 0));
+        manager.registerWire(new BlockPos(3, 0, 1));
+        manager.registerWire(new BlockPos(2, 0, 1));
+        manager.registerWire(new BlockPos(1, 0, 1));
+        manager.registerWire(new BlockPos(0, 0, 1));
+        manager.registerWire(new BlockPos(-1, 0, 1));
+        manager.registerWire(new BlockPos(-1, 0, 0));
+
+        manager.tickSimulation(
+                20.0,
+                0.05
+        );
+
+        double wireResistance =
+                7 * 0.01;
+
+        double externalResistance =
+                10.0
+                        + 20.0
+                        + wireResistance;
+
+        double totalResistance =
+                externalResistance
+                        + 0.1;
+
+        double expectedCurrent =
+                12.0 / totalResistance;
+
+        assertEquals(
+                expectedCurrent,
+                source.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                expectedCurrent,
+                load1.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                expectedCurrent,
+                load2.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                expectedCurrent * 10.0,
+                load1.getElectricalState().voltage(),
+                DELTA
+        );
+
+        assertEquals(
+                expectedCurrent * 20.0,
+                load2.getElectricalState().voltage(),
                 DELTA
         );
     }

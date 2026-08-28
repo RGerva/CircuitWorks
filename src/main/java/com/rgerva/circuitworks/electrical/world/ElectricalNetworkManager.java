@@ -689,6 +689,10 @@ public final class ElectricalNetworkManager {
         return loads.size();
     }
 
+    public Set<BlockPos> getLoadPositions() {
+        return Set.copyOf(loads.keySet());
+    }
+
     /* TICK */
     public List<ElectricalSimulationEvent> tickSimulation(
             double ambientTemperature,
@@ -769,6 +773,15 @@ public final class ElectricalNetworkManager {
         for (WorldSourceNode source : sources.values()) {
             if (!simulatedComponents.contains(source.component())) {
                 source.component().updateThermalState(
+                        ambientTemperature,
+                        deltaSeconds
+                );
+            }
+        }
+
+        for (WorldLoadNode load : loads.values()) {
+            if (!simulatedComponents.contains(load.component())) {
+                load.component().updateThermalState(
                         ambientTemperature,
                         deltaSeconds
                 );
