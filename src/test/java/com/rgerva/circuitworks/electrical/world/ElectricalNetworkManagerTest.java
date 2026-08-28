@@ -20,8 +20,11 @@ import com.rgerva.circuitworks.electrical.component.DCVoltageSourceComponent;
 import com.rgerva.circuitworks.electrical.component.ResistiveLoadComponent;
 import com.rgerva.circuitworks.electrical.component.WireComponent;
 
+import com.rgerva.circuitworks.electrical.network.ElectricalConnection;
+import com.rgerva.circuitworks.electrical.network.ElectricalNetwork;
 import com.rgerva.circuitworks.electrical.network.ElectricalNetworkResult;
 import com.rgerva.circuitworks.electrical.network.ElectricalNetworkStatus;
+import com.rgerva.circuitworks.electrical.thermal.ThermalProperties;
 import com.rgerva.circuitworks.electrical.thermal.ThermalStatus;
 import net.minecraft.core.BlockPos;
 
@@ -674,44 +677,102 @@ class ElectricalNetworkManagerTest {
     }
 
     @Test
-    void branchedWirePathShouldBeUnsupportedForNow() {
+    void branchedWirePathShouldBeSolved() {
         ElectricalNetworkManager manager =
                 new ElectricalNetworkManager();
 
-        BlockPos sourcePos = new BlockPos(0, 64, 0);
+        BlockPos sourcePos =
+                new BlockPos(0, 64, 0);
+
+        DCVoltageSourceComponent source =
+                new DCVoltageSourceComponent(
+                        1.0,
+                        0.1,
+                        100.0
+                );
 
         manager.registerSource(
                 sourcePos,
-                new DCVoltageSourceComponent(12.0, 0.1, 100.0),
+                source,
                 Direction.EAST,
                 Direction.WEST
         );
 
-        manager.registerWire(new BlockPos(1, 64, 0));
-        manager.registerWire(new BlockPos(1, 64, 1));
-        manager.registerWire(new BlockPos(0, 64, 1));
-        manager.registerWire(new BlockPos(-1, 64, 1));
-        manager.registerWire(new BlockPos(-1, 64, 0));
+        /*
+         *                    ┌── A1 ─ A2 ─ A3 ──┐
+         * SOURCE + ── P ─────┤                  ├──── N ── SOURCE -
+         *                    └── B1 ─ B2 ─ B3 ──┘
+         */
+
+        BlockPos positiveWire =
+                new BlockPos(1, 64, 0);
+
+        BlockPos negativeWire =
+                new BlockPos(-1, 64, 0);
 
         /*
-         * Branch adicional.
+         * Branch A.
          */
-        manager.registerWire(new BlockPos(0, 65, 1));
+        BlockPos a1 =
+                new BlockPos(1, 64, 1);
+
+        BlockPos a2 =
+                new BlockPos(0, 64, 1);
+
+        BlockPos a3 =
+                new BlockPos(-1, 64, 1);
+
+        /*
+         * Branch B.
+         */
+        BlockPos b1 =
+                new BlockPos(1, 65, 0);
+
+        BlockPos b2 =
+                new BlockPos(0, 65, 0);
+
+        BlockPos b3 =
+                new BlockPos(-1, 65, 0);
+
+        manager.registerWire(positiveWire);
+
+        manager.registerWire(a1);
+        manager.registerWire(a2);
+        manager.registerWire(a3);
+
+        manager.registerWire(b1);
+        manager.registerWire(b2);
+        manager.registerWire(b3);
+
+        manager.registerWire(negativeWire);
 
         ElectricalWorldNetwork worldNetwork =
-                manager.getElectricalWorldNetworkAt(sourcePos)
-                        .orElseThrow();
+                manager.getElectricalWorldNetworkAt(
+                        sourcePos
+                ).orElseThrow();
 
         WorldCircuitResult result =
-                manager.resolveWorldCircuit(worldNetwork);
+                manager.resolveWorldCircuit(
+                        worldNetwork
+                );
 
         assertEquals(
-                WorldCircuitStatus.UNSUPPORTED_TOPOLOGY,
+                1,
+                worldNetwork.getSourceCount()
+        );
+
+        assertEquals(
+                8,
+                worldNetwork.getWireCount()
+        );
+
+        assertEquals(
+                WorldCircuitStatus.SOLVED,
                 result.status()
         );
 
         assertTrue(
-                result.electricalResult().isEmpty()
+                result.electricalResult().isPresent()
         );
     }
 
@@ -1363,6 +1424,955 @@ class ElectricalNetworkManagerTest {
         assertEquals(
                 expectedCurrent * 20.0,
                 load2.getElectricalState().voltage(),
+                DELTA
+        );
+    }
+
+    @Test
+    void changingLoadResistanceAtRuntimeShouldRecalculateCircuit() {
+        ElectricalNetworkManager manager =
+                new ElectricalNetworkManager();
+
+        DCVoltageSourceComponent source =
+                new DCVoltageSourceComponent(
+                        12.0,
+                        0.1,
+                        10.0
+                );
+
+        ResistiveLoadComponent load1 =
+                new ResistiveLoadComponent(10.0);
+
+        ResistiveLoadComponent load2 =
+                new ResistiveLoadComponent(10.0);
+
+        manager.registerSource(
+                new BlockPos(0, 0, 0),
+                source,
+                Direction.EAST,
+                Direction.WEST
+        );
+
+        manager.registerLoad(
+                new BlockPos(1, 0, 0),
+                load1,
+                Direction.WEST,
+                Direction.EAST
+        );
+
+        manager.registerLoad(
+                new BlockPos(2, 0, 0),
+                load2,
+                Direction.WEST,
+                Direction.EAST
+        );
+
+        manager.registerWire(new BlockPos(3, 0, 0));
+        manager.registerWire(new BlockPos(3, 0, 1));
+        manager.registerWire(new BlockPos(2, 0, 1));
+        manager.registerWire(new BlockPos(1, 0, 1));
+        manager.registerWire(new BlockPos(0, 0, 1));
+        manager.registerWire(new BlockPos(-1, 0, 1));
+        manager.registerWire(new BlockPos(-1, 0, 0));
+
+        /*
+         * Estado inicial:
+         *
+         * 10 + 10 + 0.07 + 0.10
+         * = 20.17 ohm
+         */
+        manager.tickSimulation(
+                20.0,
+                0.05
+        );
+
+        double initialCurrent =
+                12.0 / 20.17;
+
+        assertEquals(
+                initialCurrent,
+                source.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                initialCurrent,
+                load1.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                initialCurrent,
+                load2.getElectricalState().current(),
+                DELTA
+        );
+
+        /*
+         * Alteração em runtime.
+         *
+         * Não removemos o load.
+         * Não registramos novamente.
+         * Não rebuildamos a topology.
+         */
+        load2.setResistance(20.0);
+
+        manager.tickSimulation(
+                20.0,
+                0.05
+        );
+
+        /*
+         * Novo estado:
+         *
+         * 10 + 20 + 0.07 + 0.10
+         * = 30.17 ohm
+         */
+        double updatedCurrent =
+                12.0 / 30.17;
+
+        assertEquals(
+                updatedCurrent,
+                source.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                updatedCurrent,
+                load1.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                updatedCurrent,
+                load2.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                updatedCurrent * 10.0,
+                load1.getElectricalState().voltage(),
+                DELTA
+        );
+
+        assertEquals(
+                updatedCurrent * 20.0,
+                load2.getElectricalState().voltage(),
+                DELTA
+        );
+    }
+
+    @Test
+    void twoParallelLoadsShouldSplitCurrent() {
+        DCVoltageSourceComponent source =
+                new DCVoltageSourceComponent(
+                        12.0,
+                        0.1,
+                        10.0
+                );
+
+        ResistiveLoadComponent load1 =
+                new ResistiveLoadComponent(10.0);
+
+        ResistiveLoadComponent load2 =
+                new ResistiveLoadComponent(20.0);
+
+        ElectricalNetwork network =
+                new ElectricalNetwork(source);
+
+        network.addComponent(load1);
+        network.addComponent(load2);
+
+        /*
+         *          ┌── 10 ohm ──┐
+         * SOURCE + ┤             ├ SOURCE -
+         *          └── 20 ohm ──┘
+         */
+        network.addConnection(
+                new ElectricalConnection(
+                        source.getPositiveTerminal(),
+                        load1.getPorts().get(0)
+                )
+        );
+
+        network.addConnection(
+                new ElectricalConnection(
+                        source.getPositiveTerminal(),
+                        load2.getPorts().get(0)
+                )
+        );
+
+        network.addConnection(
+                new ElectricalConnection(
+                        load1.getPorts().get(1),
+                        source.getNegativeTerminal()
+                )
+        );
+
+        network.addConnection(
+                new ElectricalConnection(
+                        load2.getPorts().get(1),
+                        source.getNegativeTerminal()
+                )
+        );
+
+        network.solve();
+
+        double expectedEquivalentResistance =
+                1.0 / (
+                        1.0 / 10.0
+                                + 1.0 / 20.0
+                );
+
+        double expectedTotalResistance =
+                expectedEquivalentResistance
+                        + 0.1;
+
+        double expectedTotalCurrent =
+                12.0 / expectedTotalResistance;
+
+        double expectedLoadVoltage =
+                expectedTotalCurrent
+                        * expectedEquivalentResistance;
+
+        double expectedLoad1Current =
+                expectedLoadVoltage / 10.0;
+
+        double expectedLoad2Current =
+                expectedLoadVoltage / 20.0;
+
+        assertEquals(
+                expectedEquivalentResistance,
+                network.getEquivalentResistance(),
+                DELTA
+        );
+
+        assertEquals(
+                expectedTotalCurrent,
+                source.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                expectedLoadVoltage,
+                load1.getElectricalState().voltage(),
+                DELTA
+        );
+
+        assertEquals(
+                expectedLoad1Current,
+                load1.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                expectedLoadVoltage,
+                load2.getElectricalState().voltage(),
+                DELTA
+        );
+
+        assertEquals(
+                expectedLoad2Current,
+                load2.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                expectedTotalCurrent,
+                load1.getElectricalState().current()
+                        + load2.getElectricalState().current(),
+                DELTA
+        );
+    }
+
+    @Test
+    void branchedWireNetworkShouldBeSimulatedDuringTick() {
+        ElectricalNetworkManager manager =
+                new ElectricalNetworkManager();
+
+        BlockPos sourcePos =
+                new BlockPos(0, 64, 0);
+
+        BlockPos positiveWire =
+                new BlockPos(1, 64, 0);
+
+        BlockPos negativeWire =
+                new BlockPos(-1, 64, 0);
+
+        BlockPos a1 =
+                new BlockPos(1, 64, 1);
+
+        BlockPos a2 =
+                new BlockPos(0, 64, 1);
+
+        BlockPos a3 =
+                new BlockPos(-1, 64, 1);
+
+        BlockPos b1 =
+                new BlockPos(1, 65, 0);
+
+        BlockPos b2 =
+                new BlockPos(0, 65, 0);
+
+        BlockPos b3 =
+                new BlockPos(-1, 65, 0);
+
+        DCVoltageSourceComponent source =
+                new DCVoltageSourceComponent(
+                        1.0,
+                        0.1,
+                        100.0
+                );
+
+        manager.registerSource(
+                sourcePos,
+                source,
+                Direction.EAST,
+                Direction.WEST
+        );
+
+        manager.registerWire(positiveWire);
+
+        manager.registerWire(a1);
+        manager.registerWire(a2);
+        manager.registerWire(a3);
+
+        manager.registerWire(b1);
+        manager.registerWire(b2);
+        manager.registerWire(b3);
+
+        manager.registerWire(negativeWire);
+
+        manager.tickSimulation(
+                20.0,
+                0.05
+        );
+
+        /*
+         * P = 0.01
+         *
+         * branch A = 0.03
+         * branch B = 0.03
+         *
+         * 0.03 || 0.03 = 0.015
+         *
+         * N = 0.01
+         *
+         * Req = 0.035
+         */
+        double equivalentResistance =
+                0.035;
+
+        double expectedTotalCurrent =
+                1.0 / (
+                        equivalentResistance
+                                + 0.1
+                );
+
+        double expectedBranchCurrent =
+                expectedTotalCurrent / 2.0;
+
+        assertEquals(
+                expectedTotalCurrent,
+                source.getElectricalState().current(),
+                DELTA
+        );
+
+        /*
+         * Antes da divisão.
+         */
+        assertEquals(
+                expectedTotalCurrent,
+                manager.getWireComponent(
+                                positiveWire
+                        ).orElseThrow()
+                        .getElectricalState()
+                        .current(),
+                DELTA
+        );
+
+        /*
+         * Depois da junção.
+         */
+        assertEquals(
+                expectedTotalCurrent,
+                manager.getWireComponent(
+                                negativeWire
+                        ).orElseThrow()
+                        .getElectricalState()
+                        .current(),
+                DELTA
+        );
+
+        /*
+         * Cada branch recebe metade.
+         */
+        assertEquals(
+                expectedBranchCurrent,
+                manager.getWireComponent(a2)
+                        .orElseThrow()
+                        .getElectricalState()
+                        .current(),
+                DELTA
+        );
+
+        assertEquals(
+                expectedBranchCurrent,
+                manager.getWireComponent(b2)
+                        .orElseThrow()
+                        .getElectricalState()
+                        .current(),
+                DELTA
+        );
+    }
+
+    @Test
+    void seriesLoadBeforeParallelLoadsShouldBeSolvedInWorld() {
+        ElectricalNetworkManager manager =
+                new ElectricalNetworkManager();
+
+        BlockPos sourcePos =
+                new BlockPos(0, 64, 0);
+
+        DCVoltageSourceComponent source =
+                new DCVoltageSourceComponent(
+                        12.0,
+                        0.1,
+                        100.0
+                );
+
+        manager.registerSource(
+                sourcePos,
+                source,
+                Direction.EAST,
+                Direction.WEST
+        );
+
+        /*
+         * SOURCE+ -> 5Ω -> P
+         *
+         *                 +-- 10Ω -- 5 wires --+
+         *                 |                    |
+         *                 +-- 20Ω -- 5 wires --+
+         *
+         *                                      N -> SOURCE-
+         */
+
+        /*
+         * Resistor em série.
+         */
+        BlockPos seriesLoadPos =
+                new BlockPos(1, 64, 0);
+
+        ResistiveLoadComponent seriesLoad =
+                new ResistiveLoadComponent(5.0);
+
+        manager.registerLoad(
+                seriesLoadPos,
+                seriesLoad,
+                Direction.WEST,
+                Direction.EAST
+        );
+
+        BlockPos positiveJunction =
+                new BlockPos(2, 64, 0);
+
+        BlockPos negativeJunction =
+                new BlockPos(-1, 64, 0);
+
+        manager.registerWire(positiveJunction);
+        manager.registerWire(negativeJunction);
+
+        /*
+         * Branch A = 10Ω + 0.05Ω de wires.
+         */
+        BlockPos loadAPos =
+                new BlockPos(2, 64, 1);
+
+        ResistiveLoadComponent loadA =
+                new ResistiveLoadComponent(10.0);
+
+        manager.registerLoad(
+                loadAPos,
+                loadA,
+                Direction.NORTH,
+                Direction.SOUTH
+        );
+
+        manager.registerWire(new BlockPos(2, 64, 2));
+        manager.registerWire(new BlockPos(1, 64, 2));
+        manager.registerWire(new BlockPos(0, 64, 2));
+        manager.registerWire(new BlockPos(-1, 64, 2));
+        manager.registerWire(new BlockPos(-1, 64, 1));
+
+        /*
+         * Branch B = 20Ω + 0.05Ω de wires.
+         */
+        BlockPos loadBPos =
+                new BlockPos(2, 64, -1);
+
+        ResistiveLoadComponent loadB =
+                new ResistiveLoadComponent(20.0);
+
+        manager.registerLoad(
+                loadBPos,
+                loadB,
+                Direction.SOUTH,
+                Direction.NORTH
+        );
+
+        manager.registerWire(new BlockPos(2, 64, -2));
+        manager.registerWire(new BlockPos(1, 64, -2));
+        manager.registerWire(new BlockPos(0, 64, -2));
+        manager.registerWire(new BlockPos(-1, 64, -2));
+        manager.registerWire(new BlockPos(-1, 64, -1));
+
+        ElectricalWorldNetwork worldNetwork =
+                manager.getElectricalWorldNetworkAt(
+                        sourcePos
+                ).orElseThrow();
+
+        WorldCircuitResult result =
+                manager.resolveWorldCircuit(
+                        worldNetwork
+                );
+
+        assertEquals(
+                WorldCircuitStatus.SOLVED,
+                result.status()
+        );
+
+        ElectricalNetworkResult electricalResult =
+                result.electricalResult()
+                        .orElseThrow();
+
+        double branchAResistance =
+                10.05;
+
+        double branchBResistance =
+                20.05;
+
+        double parallelResistance =
+                1.0 / (
+                        (1.0 / branchAResistance)
+                                + (1.0 / branchBResistance)
+                );
+
+        /*
+         * 5Ω series load
+         * + P wire 0.01Ω
+         * + paralelo
+         * + N wire 0.01Ω
+         */
+        double expectedEquivalentResistance =
+                5.02
+                        + parallelResistance;
+
+        assertEquals(
+                expectedEquivalentResistance,
+                electricalResult.equivalentResistance(),
+                DELTA
+        );
+    }
+
+    @Test
+    void seriesLoadBeforeParallelLoadsShouldSplitCurrentDuringTick() {
+        ElectricalNetworkManager manager =
+                new ElectricalNetworkManager();
+
+        BlockPos sourcePos =
+                new BlockPos(0, 64, 0);
+
+        DCVoltageSourceComponent source =
+                new DCVoltageSourceComponent(
+                        12.0,
+                        0.1,
+                        100.0
+                );
+
+        manager.registerSource(
+                sourcePos,
+                source,
+                Direction.EAST,
+                Direction.WEST
+        );
+
+        BlockPos seriesLoadPos =
+                new BlockPos(1, 64, 0);
+
+        ResistiveLoadComponent seriesLoad =
+                new ResistiveLoadComponent(5.0);
+
+        manager.registerLoad(
+                seriesLoadPos,
+                seriesLoad,
+                Direction.WEST,
+                Direction.EAST
+        );
+
+        BlockPos positiveJunction =
+                new BlockPos(2, 64, 0);
+
+        BlockPos negativeJunction =
+                new BlockPos(-1, 64, 0);
+
+        manager.registerWire(positiveJunction);
+        manager.registerWire(negativeJunction);
+
+        /*
+         * Branch A = 10Ω + 0.05Ω
+         */
+        BlockPos loadAPos =
+                new BlockPos(2, 64, 1);
+
+        ResistiveLoadComponent loadA =
+                new ResistiveLoadComponent(
+                        10.0,
+                        new ThermalProperties(
+                                1000.0,
+                                100.0
+                        ),
+                        ResistiveLoadComponent.DEFAULT_THERMAL_LIMITS,
+                        20.0,
+                        ComponentOperationalStatus.OPERATIONAL
+                );
+
+        manager.registerLoad(
+                loadAPos,
+                loadA,
+                Direction.NORTH,
+                Direction.SOUTH
+        );
+
+        manager.registerWire(new BlockPos(2, 64, 2));
+        manager.registerWire(new BlockPos(1, 64, 2));
+        manager.registerWire(new BlockPos(0, 64, 2));
+        manager.registerWire(new BlockPos(-1, 64, 2));
+        manager.registerWire(new BlockPos(-1, 64, 1));
+
+        /*
+         * Branch B = 20Ω + 0.05Ω
+         */
+        BlockPos loadBPos =
+                new BlockPos(2, 64, -1);
+
+        ResistiveLoadComponent loadB =
+                new ResistiveLoadComponent(20.0);
+
+        manager.registerLoad(
+                loadBPos,
+                loadB,
+                Direction.SOUTH,
+                Direction.NORTH
+        );
+
+        manager.registerWire(new BlockPos(2, 64, -2));
+        manager.registerWire(new BlockPos(1, 64, -2));
+        manager.registerWire(new BlockPos(0, 64, -2));
+        manager.registerWire(new BlockPos(-1, 64, -2));
+        manager.registerWire(new BlockPos(-1, 64, -1));
+
+        manager.tickSimulation(
+                20.0,
+                0.05
+        );
+
+        double branchAResistance =
+                10.05;
+
+        double branchBResistance =
+                20.05;
+
+        double parallelResistance =
+                1.0 / (
+                        (1.0 / branchAResistance)
+                                + (1.0 / branchBResistance)
+                );
+
+        double equivalentResistance =
+                5.02
+                        + parallelResistance;
+
+        double expectedTotalCurrent =
+                12.0 / (
+                        equivalentResistance
+                                + 0.1
+                );
+
+        double parallelVoltage =
+                expectedTotalCurrent
+                        * parallelResistance;
+
+        double expectedBranchACurrent =
+                parallelVoltage
+                        / branchAResistance;
+
+        double expectedBranchBCurrent =
+                parallelVoltage
+                        / branchBResistance;
+
+        double expectedLoadAPower =
+                expectedBranchACurrent
+                        * expectedBranchACurrent
+                        * 10.0;
+
+        double expectedLoadATemperature =
+                20.0
+                        + (
+                        expectedLoadAPower
+                                * 0.05
+                                / 1000.0
+                );
+
+        assertEquals(
+                expectedLoadATemperature,
+                loadA.getThermalState()
+                        .temperatureCelsius(),
+                DELTA
+        );
+
+        /*
+         * Corrente total passa pela fonte
+         * e pelo resistor em série.
+         */
+        assertEquals(
+                expectedTotalCurrent,
+                source.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                expectedTotalCurrent,
+                seriesLoad.getElectricalState().current(),
+                DELTA
+        );
+
+        /*
+         * Antes da divisão.
+         */
+        assertEquals(
+                expectedTotalCurrent,
+                manager.getWireComponent(
+                                positiveJunction
+                        ).orElseThrow()
+                        .getElectricalState()
+                        .current(),
+                DELTA
+        );
+
+        /*
+         * Branches possuem correntes diferentes.
+         */
+        assertEquals(
+                expectedBranchACurrent,
+                loadA.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                expectedBranchBCurrent,
+                loadB.getElectricalState().current(),
+                DELTA
+        );
+
+        /*
+         * Depois da junção volta a ser a corrente total.
+         */
+        assertEquals(
+                expectedTotalCurrent,
+                manager.getWireComponent(
+                                negativeJunction
+                        ).orElseThrow()
+                        .getElectricalState()
+                        .current(),
+                DELTA
+        );
+
+        /*
+         * KCL.
+         */
+        assertEquals(
+                expectedTotalCurrent,
+                expectedBranchACurrent
+                        + expectedBranchBCurrent,
+                DELTA
+        );
+    }
+
+    @Test
+    void removingWireFromParallelBranchShouldRecalculateCircuit() {
+        ElectricalNetworkManager manager =
+                new ElectricalNetworkManager();
+
+        BlockPos sourcePos =
+                new BlockPos(0, 64, 0);
+
+        DCVoltageSourceComponent source =
+                new DCVoltageSourceComponent(
+                        12.0,
+                        0.1,
+                        100.0
+                );
+
+        manager.registerSource(
+                sourcePos,
+                source,
+                Direction.EAST,
+                Direction.WEST
+        );
+
+        ResistiveLoadComponent seriesLoad =
+                new ResistiveLoadComponent(5.0);
+
+        manager.registerLoad(
+                new BlockPos(1, 64, 0),
+                seriesLoad,
+                Direction.WEST,
+                Direction.EAST
+        );
+
+        BlockPos positiveJunction =
+                new BlockPos(2, 64, 0);
+
+        BlockPos negativeJunction =
+                new BlockPos(-1, 64, 0);
+
+        manager.registerWire(positiveJunction);
+        manager.registerWire(negativeJunction);
+
+        /*
+         * Branch A.
+         */
+        ResistiveLoadComponent loadA =
+                new ResistiveLoadComponent(10.0);
+
+        manager.registerLoad(
+                new BlockPos(2, 64, 1),
+                loadA,
+                Direction.NORTH,
+                Direction.SOUTH
+        );
+
+        manager.registerWire(new BlockPos(2, 64, 2));
+        manager.registerWire(new BlockPos(1, 64, 2));
+
+        BlockPos brokenWire =
+                new BlockPos(0, 64, 2);
+
+        manager.registerWire(brokenWire);
+
+        manager.registerWire(new BlockPos(-1, 64, 2));
+        manager.registerWire(new BlockPos(-1, 64, 1));
+
+        /*
+         * Branch B.
+         */
+        ResistiveLoadComponent loadB =
+                new ResistiveLoadComponent(20.0);
+
+        manager.registerLoad(
+                new BlockPos(2, 64, -1),
+                loadB,
+                Direction.SOUTH,
+                Direction.NORTH
+        );
+
+        manager.registerWire(new BlockPos(2, 64, -2));
+        manager.registerWire(new BlockPos(1, 64, -2));
+        manager.registerWire(new BlockPos(0, 64, -2));
+        manager.registerWire(new BlockPos(-1, 64, -2));
+        manager.registerWire(new BlockPos(-1, 64, -1));
+
+        /*
+         * Primeiro tick: os dois branches estão ativos.
+         */
+        manager.tickSimulation(
+                20.0,
+                0.05
+        );
+
+        assertTrue(
+                loadA.getElectricalState().current() > 0.0
+        );
+
+        assertTrue(
+                loadB.getElectricalState().current() > 0.0
+        );
+
+        /*
+         * Quebra o branch A.
+         */
+        assertTrue(
+                manager.unregisterWire(
+                        brokenWire
+                )
+        );
+
+        manager.tickSimulation(
+                20.0,
+                0.05
+        );
+
+        /*
+         * Agora só existe o caminho:
+         *
+         * 5Ω
+         * + P 0.01Ω
+         * + branch B (20Ω + 0.05Ω)
+         * + N 0.01Ω
+         */
+        double expectedEquivalentResistance =
+                5.0
+                        + 0.01
+                        + 20.05
+                        + 0.01;
+
+        double expectedCurrent =
+                12.0 / (
+                        expectedEquivalentResistance
+                                + 0.1
+                );
+
+        assertEquals(
+                0.0,
+                loadA.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                expectedCurrent,
+                loadB.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                expectedCurrent,
+                seriesLoad.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                expectedCurrent,
+                source.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                expectedCurrent,
+                manager.getWireComponent(
+                                positiveJunction
+                        ).orElseThrow()
+                        .getElectricalState()
+                        .current(),
+                DELTA
+        );
+
+        assertEquals(
+                expectedCurrent,
+                manager.getWireComponent(
+                                negativeJunction
+                        ).orElseThrow()
+                        .getElectricalState()
+                        .current(),
                 DELTA
         );
     }

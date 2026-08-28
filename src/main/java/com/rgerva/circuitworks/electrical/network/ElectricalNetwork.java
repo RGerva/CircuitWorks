@@ -76,6 +76,30 @@ public class ElectricalNetwork {
 
         double sourceVoltage = source.getVoltage();
 
+        ResistiveNetworkSolver.Solution nodal =
+                ResistiveNetworkSolver.solve(
+                        source,
+                        components,
+                        connections
+                );
+
+        if (nodal.supported()) {
+            return solveNodalNetwork(
+                    nodal,
+                    sourceVoltage
+            );
+        }
+
+        SimpleParallelNetwork parallel =
+                resolveSimpleParallelNetwork();
+
+        if (parallel.closed()) {
+            return solveSimpleParallelNetwork(
+                    parallel,
+                    sourceVoltage
+            );
+        }
+
         SeriesPath path = resolveSeriesPath();
 
         // Circuito aberto
@@ -245,6 +269,373 @@ public class ElectricalNetwork {
         );
 
         return result;
+    }
+
+    private ElectricalNetworkResult solveNodalNetwork(
+            ResistiveNetworkSolver.Solution solution,
+            double sourceVoltage
+    ) {
+        if (!solution.closed()) {
+            ElectricalState state =
+                    new ElectricalState(
+                            sourceVoltage,
+                            0.0
+                    );
+
+            source.updateElectricalState(
+                    state
+            );
+
+            result = new ElectricalNetworkResult(
+                    ElectricalNetworkStatus.OPEN_CIRCUIT,
+                    state,
+                    Double.POSITIVE_INFINITY
+            );
+
+            return result;
+        }
+
+        double equivalentResistance =
+                solution.equivalentResistance();
+
+        if (Math.abs(sourceVoltage)
+                <= ElectricalConstants.EPSILON) {
+
+            source.updateElectricalState(
+                    ElectricalState.ZERO
+            );
+
+            result = new ElectricalNetworkResult(
+                    ElectricalNetworkStatus.INACTIVE,
+                    ElectricalState.ZERO,
+                    equivalentResistance
+            );
+
+            return result;
+        }
+
+        double totalResistance =
+                equivalentResistance
+                        + source.getInternalResistance();
+
+        double totalCurrent =
+                sourceVoltage
+                        / totalResistance;
+
+        /*
+         * A resistência interna provoca queda de tensão.
+         *
+         * Esta é a tensão realmente aplicada
+         * à rede externa.
+         */
+        double terminalVoltage =
+                totalCurrent
+                        * equivalentResistance;
+
+        ElectricalState sourceState =
+                new ElectricalState(
+                        sourceVoltage,
+                        totalCurrent
+                );
+
+        source.updateElectricalState(
+                sourceState
+        );
+
+        Map<IResistiveComponent, Double>
+                componentCurrents =
+                new IdentityHashMap<>();
+
+        for (Map.Entry<
+                IResistiveComponent,
+                ElectricalState
+                > entry
+                : solution.normalizedStates()
+                .entrySet()) {
+
+            ElectricalState normalized =
+                    entry.getValue();
+
+            ElectricalState actual =
+                    new ElectricalState(
+                            normalized.voltage()
+                                    * terminalVoltage,
+                            normalized.current()
+                                    * terminalVoltage
+                    );
+
+            entry.getKey()
+                    .updateElectricalState(
+                            actual
+                    );
+
+            componentCurrents.put(
+                    entry.getKey(),
+                    actual.current()
+            );
+        }
+
+        List<ElectricalFault> faults =
+                detectParallelCurrentFaults(
+                        componentCurrents,
+                        totalCurrent
+                );
+
+        ElectricalNetworkStatus status =
+                faults.isEmpty()
+                        ? ElectricalNetworkStatus.ACTIVE
+                        : ElectricalNetworkStatus.OVERCURRENT;
+
+        result = new ElectricalNetworkResult(
+                status,
+                sourceState,
+                equivalentResistance,
+                faults
+        );
+
+        return result;
+    }
+
+    private SimpleParallelNetwork resolveSimpleParallelNetwork() {
+        if (source == null
+                || components.size() < 2) {
+            return SimpleParallelNetwork.OPEN;
+        }
+
+        ElectricalNodeGraph graph =
+                ElectricalNodeGraph.build(
+                        source,
+                        components,
+                        connections
+                );
+
+        ElectricalPort positive =
+                source.getPositiveTerminal();
+
+        ElectricalPort negative =
+                source.getNegativeTerminal();
+
+        /*
+         * Se + e - já forem o mesmo nó,
+         * não é o caso simples que queremos
+         * resolver nesta etapa.
+         */
+        if (graph.isSameNode(
+                positive,
+                negative
+        )) {
+            return SimpleParallelNetwork.OPEN;
+        }
+
+        for (IResistiveComponent component : components) {
+            List<ElectricalPort> ports =
+                    component.getPorts();
+
+            if (ports.size() != 2) {
+                return SimpleParallelNetwork.OPEN;
+            }
+
+            /*
+             * Nesta primeira versão do paralelo
+             * não tratamos branch de resistência zero.
+             */
+            if (!Double.isFinite(component.getResistance())
+                    || component.getResistance()
+                    <= ElectricalConstants.EPSILON) {
+                return SimpleParallelNetwork.OPEN;
+            }
+
+            ElectricalPort first =
+                    ports.get(0);
+
+            ElectricalPort second =
+                    ports.get(1);
+
+            boolean forward =
+                    graph.isSameNode(first, positive)
+                            && graph.isSameNode(
+                            second,
+                            negative
+                    );
+
+            boolean reverse =
+                    graph.isSameNode(first, negative)
+                            && graph.isSameNode(
+                            second,
+                            positive
+                    );
+
+            /*
+             * Todos os componentes precisam estar
+             * diretamente entre NODE+ e NODE-.
+             */
+            if (!forward && !reverse) {
+                return SimpleParallelNetwork.OPEN;
+            }
+        }
+
+        return new SimpleParallelNetwork(
+                true,
+                List.copyOf(components)
+        );
+    }
+
+    private double calculateParallelEquivalentResistance(
+            List<IResistiveComponent> parallelComponents
+    ) {
+        double totalConductance = 0.0;
+
+        for (IResistiveComponent component
+                : parallelComponents) {
+
+            totalConductance +=
+                    1.0 / component.getResistance();
+        }
+
+        return 1.0 / totalConductance;
+    }
+
+
+    private ElectricalNetworkResult solveSimpleParallelNetwork(
+            SimpleParallelNetwork parallel,
+            double sourceVoltage
+    ) {
+        double equivalentResistance =
+                calculateParallelEquivalentResistance(
+                        parallel.components()
+                );
+
+        /*
+         * Fonte desligada.
+         */
+        if (Math.abs(sourceVoltage)
+                <= ElectricalConstants.EPSILON) {
+
+            source.updateElectricalState(
+                    ElectricalState.ZERO
+            );
+
+            result = new ElectricalNetworkResult(
+                    ElectricalNetworkStatus.INACTIVE,
+                    ElectricalState.ZERO,
+                    equivalentResistance
+            );
+
+            return result;
+        }
+
+        /*
+         * Req externo + resistência interna da fonte.
+         */
+        double totalResistance =
+                equivalentResistance
+                        + source.getInternalResistance();
+
+        double totalCurrent =
+                sourceVoltage / totalResistance;
+
+        /*
+         * Tensão realmente disponível nos terminais
+         * externos da fonte.
+         *
+         * Vterminal = Itotal * Req
+         */
+        double terminalVoltage =
+                totalCurrent
+                        * equivalentResistance;
+
+        ElectricalState sourceState =
+                new ElectricalState(
+                        sourceVoltage,
+                        totalCurrent
+                );
+
+        source.updateElectricalState(
+                sourceState
+        );
+
+        Map<IResistiveComponent, Double> branchCurrents =
+                new IdentityHashMap<>();
+
+        for (IResistiveComponent component
+                : parallel.components()) {
+
+            double branchCurrent =
+                    terminalVoltage
+                            / component.getResistance();
+
+            branchCurrents.put(
+                    component,
+                    branchCurrent
+            );
+
+            component.updateElectricalState(
+                    new ElectricalState(
+                            terminalVoltage,
+                            branchCurrent
+                    )
+            );
+        }
+
+        List<ElectricalFault> faults =
+                detectParallelCurrentFaults(
+                        branchCurrents,
+                        totalCurrent
+                );
+
+        ElectricalNetworkStatus status =
+                faults.isEmpty()
+                        ? ElectricalNetworkStatus.ACTIVE
+                        : ElectricalNetworkStatus.OVERCURRENT;
+
+        result = new ElectricalNetworkResult(
+                status,
+                sourceState,
+                equivalentResistance,
+                faults
+        );
+
+        return result;
+    }
+
+    private List<ElectricalFault> detectParallelCurrentFaults(
+            Map<IResistiveComponent, Double> branchCurrents,
+            double totalCurrent
+    ) {
+        List<ElectricalFault> faults =
+                new ArrayList<>();
+
+        /*
+         * A fonte conduz a soma de todas
+         * as correntes dos branches.
+         */
+        if (source != null) {
+            checkCurrentLimit(
+                    source,
+                    totalCurrent,
+                    faults
+            );
+        }
+
+        /*
+         * Cada componente conduz somente
+         * a corrente do próprio branch.
+         */
+        for (Map.Entry<IResistiveComponent, Double> entry
+                : branchCurrents.entrySet()) {
+
+            if (entry.getKey()
+                    instanceof ICurrentLimitedComponent limited) {
+
+                checkCurrentLimit(
+                        limited,
+                        entry.getValue(),
+                        faults
+                );
+            }
+        }
+
+        return faults;
     }
 
     /**
@@ -519,7 +910,28 @@ public class ElectricalNetwork {
     }
 
     public double getEquivalentResistance() {
-        SeriesPath path = resolveSeriesPath();
+        ResistiveNetworkSolver.Solution nodal =
+                ResistiveNetworkSolver.solve(
+                        source,
+                        components,
+                        connections
+                );
+
+        if (nodal.supported()) {
+            return nodal.equivalentResistance();
+        }
+
+        SimpleParallelNetwork parallel =
+                resolveSimpleParallelNetwork();
+
+        if (parallel.closed()) {
+            return calculateParallelEquivalentResistance(
+                    parallel.components()
+            );
+        }
+
+        SeriesPath path =
+                resolveSeriesPath();
 
         if (!path.closed()) {
             return Double.POSITIVE_INFINITY;
@@ -598,6 +1010,17 @@ public class ElectricalNetwork {
     ) {
         private static final SeriesPath OPEN =
                 new SeriesPath(false, List.of());
+    }
+
+    private record SimpleParallelNetwork(
+            boolean closed,
+            List<IResistiveComponent> components
+    ) {
+        private static final SimpleParallelNetwork OPEN =
+                new SimpleParallelNetwork(
+                        false,
+                        List.of()
+                );
     }
 
     public ElectricalNetworkResult getResult() {

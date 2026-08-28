@@ -150,37 +150,6 @@ public final class ElectricalWorldEvents {
         }
     }
 
-    private static void logLoadThermalState(
-            ElectricalNetworkManager manager
-    ) {
-        for (BlockPos pos : manager.getLoadPositions()) {
-            manager.getLoad(pos).ifPresent(load ->
-                    CircuitWorks.LOGGER.info(
-                            "[Electrical][Load Thermal] pos={} | T={} C | V={} V | I={} A",
-                            pos.toShortString(),
-                            String.format(
-                                    Locale.ROOT,
-                                    "%.2f",
-                                    load.getThermalState()
-                                            .temperatureCelsius()
-                            ),
-                            String.format(
-                                    Locale.ROOT,
-                                    "%.3f",
-                                    load.getElectricalState()
-                                            .voltage()
-                            ),
-                            String.format(
-                                    Locale.ROOT,
-                                    "%.3f",
-                                    load.getElectricalState()
-                                            .current()
-                            )
-                    )
-            );
-        }
-    }
-
     private static void processPendingChunkLoads(
             ServerLevel level
     ) {

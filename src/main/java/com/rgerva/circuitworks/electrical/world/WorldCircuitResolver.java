@@ -21,6 +21,7 @@ import com.rgerva.circuitworks.electrical.component.WireComponent;
 import com.rgerva.circuitworks.electrical.network.ElectricalConnection;
 import com.rgerva.circuitworks.electrical.network.ElectricalNetwork;
 import com.rgerva.circuitworks.electrical.network.ElectricalNetworkResult;
+import com.rgerva.circuitworks.electrical.network.ElectricalNetworkStatus;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 
@@ -45,6 +46,16 @@ public final class WorldCircuitResolver {
             return WorldCircuitResult.withoutElectricalResult(
                     WorldCircuitStatus.MULTIPLE_SOURCES
             );
+        }
+
+        Optional<WorldCircuitResult> graphResult =
+                tryResolveWireOnlyGraph(
+                        manager,
+                        worldNetwork
+                );
+
+        if (graphResult.isPresent()) {
+            return graphResult.get();
         }
 
         BlockPos sourcePos = worldNetwork.sources()
@@ -461,5 +472,138 @@ public final class WorldCircuitResolver {
             ElectricalPort entryPort,
             ElectricalPort exitPort
     ) {
+    }
+
+    private static Optional<WorldCircuitResult>
+    tryResolveWireOnlyGraph(
+            ElectricalNetworkManager manager,
+            ElectricalWorldNetwork worldNetwork
+    ) {
+        Optional<ElectricalNetwork> networkOptional =
+                tryBuildGraphElectricalNetwork(
+                        manager,
+                        worldNetwork
+                );
+
+        if (networkOptional.isEmpty()) {
+            return Optional.empty();
+        }
+
+        ElectricalNetworkResult electricalResult =
+                networkOptional.get().solve();
+
+        if (electricalResult.status()
+                == ElectricalNetworkStatus.OPEN_CIRCUIT) {
+            return Optional.empty();
+        }
+
+        List<BlockPos> componentPositions =
+                new ArrayList<>();
+
+        componentPositions.addAll(
+                worldNetwork.wires()
+        );
+
+        componentPositions.addAll(
+                worldNetwork.loads()
+        );
+
+        return Optional.of(
+                new WorldCircuitResult(
+                        WorldCircuitStatus.SOLVED,
+                        List.copyOf(
+                                componentPositions
+                        ),
+                        Optional.of(
+                                electricalResult
+                        )
+                )
+        );
+    }
+
+    static Optional<ElectricalNetwork>
+    tryBuildGraphElectricalNetwork(
+            ElectricalNetworkManager manager,
+            ElectricalWorldNetwork worldNetwork
+    ) {
+        if (worldNetwork.getSourceCount() != 1) {
+            return Optional.empty();
+        }
+
+        BlockPos sourcePos =
+                worldNetwork.sources()
+                        .iterator()
+                        .next();
+
+        WorldCircuitGraph graph =
+                WorldCircuitGraph.build(
+                        manager,
+                        worldNetwork
+                );
+
+        boolean hasBranch =
+                graph.positions()
+                        .stream()
+                        .filter(pos ->
+                                !pos.equals(sourcePos)
+                        )
+                        .anyMatch(pos ->
+                                graph.degree(pos) > 2
+                        );
+
+        if (!hasBranch) {
+            return Optional.empty();
+        }
+
+        WorldSourceNode sourceNode =
+                manager.getSourceNode(sourcePos)
+                        .orElseThrow();
+
+        BlockPos positiveAnchor =
+                sourcePos.relative(
+                        sourceNode.positiveDirection()
+                );
+
+        BlockPos negativeAnchor =
+                sourcePos.relative(
+                        sourceNode.negativeDirection()
+                );
+
+        Set<BlockPos> componentPositions =
+                new HashSet<>();
+
+        componentPositions.addAll(
+                worldNetwork.wires()
+        );
+
+        componentPositions.addAll(
+                worldNetwork.loads()
+        );
+
+        if (!componentPositions.contains(
+                positiveAnchor
+        )
+                || !componentPositions.contains(
+                negativeAnchor
+        )) {
+
+            return Optional.empty();
+        }
+
+        try {
+            return Optional.of(
+                    WorldElectricalNetworkBuilder.build(
+                            manager,
+                            worldNetwork,
+                            sourcePos,
+                            positiveAnchor,
+                            negativeAnchor
+                    )
+            );
+        } catch (IllegalStateException
+                 | IllegalArgumentException ignored) {
+
+            return Optional.empty();
+        }
     }
 }

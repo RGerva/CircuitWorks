@@ -2074,4 +2074,767 @@ class ElectricalNetworkTest {
                 wire.getElectricalState()
         );
     }
+
+    @Test
+    void seriesLoadBeforeParallelLoadsShouldSplitCurrentAfterSeriesSection() {
+        DCVoltageSourceComponent source =
+                new DCVoltageSourceComponent(
+                        12.0,
+                        0.1,
+                        10.0
+                );
+
+        ResistiveLoadComponent seriesLoad =
+                new ResistiveLoadComponent(5.0);
+
+        ResistiveLoadComponent load1 =
+                new ResistiveLoadComponent(10.0);
+
+        ResistiveLoadComponent load2 =
+                new ResistiveLoadComponent(20.0);
+
+        ElectricalNetwork network =
+                new ElectricalNetwork(source);
+
+        network.addComponent(seriesLoad);
+        network.addComponent(load1);
+        network.addComponent(load2);
+
+        /*
+         * SOURCE + -> 5 ohm -> NODE
+         *                      |-- 10 ohm --|
+         *                      |-- 20 ohm --| -> SOURCE -
+         */
+
+        network.addConnection(
+                new ElectricalConnection(
+                        source.getPositiveTerminal(),
+                        seriesLoad.getPorts().get(0)
+                )
+        );
+
+        network.addConnection(
+                new ElectricalConnection(
+                        seriesLoad.getPorts().get(1),
+                        load1.getPorts().get(0)
+                )
+        );
+
+        network.addConnection(
+                new ElectricalConnection(
+                        seriesLoad.getPorts().get(1),
+                        load2.getPorts().get(0)
+                )
+        );
+
+        network.addConnection(
+                new ElectricalConnection(
+                        load1.getPorts().get(1),
+                        source.getNegativeTerminal()
+                )
+        );
+
+        network.addConnection(
+                new ElectricalConnection(
+                        load2.getPorts().get(1),
+                        source.getNegativeTerminal()
+                )
+        );
+
+        network.solve();
+
+        double parallelResistance =
+                1.0 / (
+                        1.0 / 10.0
+                                + 1.0 / 20.0
+                );
+
+        double externalResistance =
+                5.0
+                        + parallelResistance;
+
+        double totalResistance =
+                externalResistance
+                        + 0.1;
+
+        double totalCurrent =
+                12.0 / totalResistance;
+
+        double seriesVoltage =
+                totalCurrent * 5.0;
+
+        double parallelVoltage =
+                totalCurrent
+                        * parallelResistance;
+
+        double load1Current =
+                parallelVoltage / 10.0;
+
+        double load2Current =
+                parallelVoltage / 20.0;
+
+        assertEquals(
+                externalResistance,
+                network.getEquivalentResistance(),
+                DELTA
+        );
+
+        assertEquals(
+                totalCurrent,
+                source.getElectricalState().current(),
+                DELTA
+        );
+
+        /*
+         * O resistor em série conduz toda
+         * a corrente da fonte.
+         */
+        assertEquals(
+                totalCurrent,
+                seriesLoad.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                seriesVoltage,
+                seriesLoad.getElectricalState().voltage(),
+                DELTA
+        );
+
+        /*
+         * Os branches compartilham
+         * a mesma tensão.
+         */
+        assertEquals(
+                parallelVoltage,
+                load1.getElectricalState().voltage(),
+                DELTA
+        );
+
+        assertEquals(
+                parallelVoltage,
+                load2.getElectricalState().voltage(),
+                DELTA
+        );
+
+        /*
+         * A corrente se divide.
+         */
+        assertEquals(
+                load1Current,
+                load1.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                load2Current,
+                load2.getElectricalState().current(),
+                DELTA
+        );
+
+        /*
+         * Lei de Kirchhoff no nó:
+         *
+         * Itotal = I1 + I2
+         */
+        assertEquals(
+                totalCurrent,
+                load1.getElectricalState().current()
+                        + load2.getElectricalState().current(),
+                DELTA
+        );
+    }
+
+    @Test
+    void failedParallelBranchShouldNotOpenHealthyBranch() {
+        DCVoltageSourceComponent source =
+                new DCVoltageSourceComponent(
+                        12.0,
+                        0.1,
+                        10.0
+                );
+
+        ResistiveLoadComponent failedLoad =
+                new ResistiveLoadComponent(
+                        10.0,
+                        ResistiveLoadComponent.DEFAULT_THERMAL_PROPERTIES,
+                        ResistiveLoadComponent.DEFAULT_THERMAL_LIMITS,
+                        20.0,
+                        ComponentOperationalStatus.FAILED
+                );
+
+        ResistiveLoadComponent healthyLoad =
+                new ResistiveLoadComponent(20.0);
+
+        ElectricalNetwork network =
+                new ElectricalNetwork(source);
+
+        network.addComponent(failedLoad);
+        network.addComponent(healthyLoad);
+
+        /*
+         *             10 ohm FAILED
+         *          ┌────── X ──────┐
+         * SOURCE + ┤               ├ SOURCE -
+         *          └──── 20 ohm ───┘
+         */
+
+        network.addConnection(
+                new ElectricalConnection(
+                        source.getPositiveTerminal(),
+                        failedLoad.getPorts().get(0)
+                )
+        );
+
+        network.addConnection(
+                new ElectricalConnection(
+                        failedLoad.getPorts().get(1),
+                        source.getNegativeTerminal()
+                )
+        );
+
+        network.addConnection(
+                new ElectricalConnection(
+                        source.getPositiveTerminal(),
+                        healthyLoad.getPorts().get(0)
+                )
+        );
+
+        network.addConnection(
+                new ElectricalConnection(
+                        healthyLoad.getPorts().get(1),
+                        source.getNegativeTerminal()
+                )
+        );
+
+        ElectricalNetworkResult result =
+                network.solve();
+
+        double expectedCurrent =
+                12.0 / 20.1;
+
+        double expectedLoadVoltage =
+                expectedCurrent * 20.0;
+
+        assertEquals(
+                ElectricalNetworkStatus.ACTIVE,
+                result.status()
+        );
+
+        /*
+         * O branch falho está aberto.
+         */
+        assertEquals(
+                ElectricalState.ZERO,
+                failedLoad.getElectricalState()
+        );
+
+        /*
+         * Portanto Req externo agora é
+         * somente o resistor saudável.
+         */
+        assertEquals(
+                20.0,
+                network.getEquivalentResistance(),
+                DELTA
+        );
+
+        assertEquals(
+                expectedCurrent,
+                source.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                expectedCurrent,
+                healthyLoad.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                expectedLoadVoltage,
+                healthyLoad.getElectricalState().voltage(),
+                DELTA
+        );
+    }
+
+    @Test
+    void parallelBranchesWithSeriesComponentsShouldSolve() {
+        DCVoltageSourceComponent source =
+                new DCVoltageSourceComponent(
+                        12.0,
+                        0.1,
+                        10.0
+                );
+
+        ResistiveLoadComponent r1 =
+                new ResistiveLoadComponent(5.0);
+
+        ResistiveLoadComponent r2 =
+                new ResistiveLoadComponent(5.0);
+
+        ResistiveLoadComponent r3 =
+                new ResistiveLoadComponent(10.0);
+
+        ResistiveLoadComponent r4 =
+                new ResistiveLoadComponent(10.0);
+
+        ElectricalNetwork network =
+                new ElectricalNetwork(source);
+
+        network.addComponent(r1);
+        network.addComponent(r2);
+        network.addComponent(r3);
+        network.addComponent(r4);
+
+        /*
+         * Branch A:
+         *
+         * SOURCE+ -> R1(5) -> R2(5) -> SOURCE-
+         */
+        network.addConnection(
+                new ElectricalConnection(
+                        source.getPositiveTerminal(),
+                        r1.getPorts().get(0)
+                )
+        );
+
+        network.addConnection(
+                new ElectricalConnection(
+                        r1.getPorts().get(1),
+                        r2.getPorts().get(0)
+                )
+        );
+
+        network.addConnection(
+                new ElectricalConnection(
+                        r2.getPorts().get(1),
+                        source.getNegativeTerminal()
+                )
+        );
+
+        /*
+         * Branch B:
+         *
+         * SOURCE+ -> R3(10) -> R4(10) -> SOURCE-
+         */
+        network.addConnection(
+                new ElectricalConnection(
+                        source.getPositiveTerminal(),
+                        r3.getPorts().get(0)
+                )
+        );
+
+        network.addConnection(
+                new ElectricalConnection(
+                        r3.getPorts().get(1),
+                        r4.getPorts().get(0)
+                )
+        );
+
+        network.addConnection(
+                new ElectricalConnection(
+                        r4.getPorts().get(1),
+                        source.getNegativeTerminal()
+                )
+        );
+
+        ElectricalNetworkResult result =
+                network.solve();
+
+        double branchAResistance =
+                5.0 + 5.0;
+
+        double branchBResistance =
+                10.0 + 10.0;
+
+        double equivalentResistance =
+                1.0 / (
+                        1.0 / branchAResistance
+                                + 1.0 / branchBResistance
+                );
+
+        double totalCurrent =
+                12.0 / (
+                        equivalentResistance
+                                + 0.1
+                );
+
+        double terminalVoltage =
+                totalCurrent
+                        * equivalentResistance;
+
+        double branchACurrent =
+                terminalVoltage
+                        / branchAResistance;
+
+        double branchBCurrent =
+                terminalVoltage
+                        / branchBResistance;
+
+        assertEquals(
+                ElectricalNetworkStatus.ACTIVE,
+                result.status()
+        );
+
+        assertEquals(
+                equivalentResistance,
+                network.getEquivalentResistance(),
+                DELTA
+        );
+
+        assertEquals(
+                totalCurrent,
+                source.getElectricalState().current(),
+                DELTA
+        );
+
+        /*
+         * Mesmo branch = mesma corrente.
+         */
+        assertEquals(
+                branchACurrent,
+                r1.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                branchACurrent,
+                r2.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                branchBCurrent,
+                r3.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                branchBCurrent,
+                r4.getElectricalState().current(),
+                DELTA
+        );
+
+        /*
+         * Como os dois resistores de cada
+         * branch são iguais, dividem igualmente
+         * a tensão daquele branch.
+         */
+        assertEquals(
+                terminalVoltage / 2.0,
+                r1.getElectricalState().voltage(),
+                DELTA
+        );
+
+        assertEquals(
+                terminalVoltage / 2.0,
+                r2.getElectricalState().voltage(),
+                DELTA
+        );
+
+        assertEquals(
+                terminalVoltage / 2.0,
+                r3.getElectricalState().voltage(),
+                DELTA
+        );
+
+        assertEquals(
+                terminalVoltage / 2.0,
+                r4.getElectricalState().voltage(),
+                DELTA
+        );
+
+        /*
+         * Kirchhoff:
+         *
+         * Ifonte = IA + IB
+         */
+        assertEquals(
+                totalCurrent,
+                branchACurrent
+                        + branchBCurrent,
+                DELTA
+        );
+    }
+
+    @Test
+    void resistiveBridgeShouldBeSolvedByNodalAnalysis() {
+        DCVoltageSourceComponent source =
+                new DCVoltageSourceComponent(
+                        12.0,
+                        0.1,
+                        10.0
+                );
+
+        ResistiveLoadComponent r1 =
+                new ResistiveLoadComponent(10.0);
+
+        ResistiveLoadComponent r2 =
+                new ResistiveLoadComponent(20.0);
+
+        ResistiveLoadComponent r3 =
+                new ResistiveLoadComponent(30.0);
+
+        ResistiveLoadComponent r4 =
+                new ResistiveLoadComponent(40.0);
+
+        ResistiveLoadComponent r5 =
+                new ResistiveLoadComponent(50.0);
+
+        ElectricalNetwork network =
+                new ElectricalNetwork(source);
+
+        network.addComponent(r1);
+        network.addComponent(r2);
+        network.addComponent(r3);
+        network.addComponent(r4);
+        network.addComponent(r5);
+
+        /*
+         * SOURCE+ -> R1 -> NODE A -> R2 -> SOURCE-
+         */
+        network.addConnection(
+                new ElectricalConnection(
+                        source.getPositiveTerminal(),
+                        r1.getPorts().get(0)
+                )
+        );
+
+        network.addConnection(
+                new ElectricalConnection(
+                        r1.getPorts().get(1),
+                        r2.getPorts().get(0)
+                )
+        );
+
+        network.addConnection(
+                new ElectricalConnection(
+                        r2.getPorts().get(1),
+                        source.getNegativeTerminal()
+                )
+        );
+
+        /*
+         * SOURCE+ -> R3 -> NODE B -> R4 -> SOURCE-
+         */
+        network.addConnection(
+                new ElectricalConnection(
+                        source.getPositiveTerminal(),
+                        r3.getPorts().get(0)
+                )
+        );
+
+        network.addConnection(
+                new ElectricalConnection(
+                        r3.getPorts().get(1),
+                        r4.getPorts().get(0)
+                )
+        );
+
+        network.addConnection(
+                new ElectricalConnection(
+                        r4.getPorts().get(1),
+                        source.getNegativeTerminal()
+                )
+        );
+
+        /*
+         * Ponte:
+         *
+         * NODE A -> R5 -> NODE B
+         */
+        network.addConnection(
+                new ElectricalConnection(
+                        r1.getPorts().get(1),
+                        r5.getPorts().get(0)
+                )
+        );
+
+        network.addConnection(
+                new ElectricalConnection(
+                        r5.getPorts().get(1),
+                        r3.getPorts().get(1)
+                )
+        );
+
+        ElectricalNetworkResult result =
+                network.solve();
+
+        /*
+         * Solução analítica da ponte:
+         *
+         * Req = 775 / 37
+         *     ≈ 20.9459459459 ohm
+         */
+        double expectedEquivalentResistance =
+                775.0 / 37.0;
+
+        double totalCurrent =
+                12.0 / (
+                        expectedEquivalentResistance
+                                + 0.1
+                );
+
+        double terminalVoltage =
+                totalCurrent
+                        * expectedEquivalentResistance;
+
+        /*
+         * Para uma excitação normalizada de 1 V:
+         *
+         * VA = 102 / 155
+         * VB =  92 / 155
+         */
+        double nodeAVoltage =
+                terminalVoltage
+                        * 102.0 / 155.0;
+
+        double nodeBVoltage =
+                terminalVoltage
+                        * 92.0 / 155.0;
+
+        double r1Voltage =
+                terminalVoltage
+                        - nodeAVoltage;
+
+        double r2Voltage =
+                nodeAVoltage;
+
+        double r3Voltage =
+                terminalVoltage
+                        - nodeBVoltage;
+
+        double r4Voltage =
+                nodeBVoltage;
+
+        double r5Voltage =
+                nodeAVoltage
+                        - nodeBVoltage;
+
+        double r1Current =
+                r1Voltage / 10.0;
+
+        double r2Current =
+                r2Voltage / 20.0;
+
+        double r3Current =
+                r3Voltage / 30.0;
+
+        double r4Current =
+                r4Voltage / 40.0;
+
+        double r5Current =
+                r5Voltage / 50.0;
+
+        assertEquals(
+                ElectricalNetworkStatus.ACTIVE,
+                result.status()
+        );
+
+        assertEquals(
+                expectedEquivalentResistance,
+                network.getEquivalentResistance(),
+                DELTA
+        );
+
+        assertEquals(
+                totalCurrent,
+                source.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                r1Voltage,
+                r1.getElectricalState().voltage(),
+                DELTA
+        );
+
+        assertEquals(
+                r1Current,
+                r1.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                r2Voltage,
+                r2.getElectricalState().voltage(),
+                DELTA
+        );
+
+        assertEquals(
+                r2Current,
+                r2.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                r3Voltage,
+                r3.getElectricalState().voltage(),
+                DELTA
+        );
+
+        assertEquals(
+                r3Current,
+                r3.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                r4Voltage,
+                r4.getElectricalState().voltage(),
+                DELTA
+        );
+
+        assertEquals(
+                r4Current,
+                r4.getElectricalState().current(),
+                DELTA
+        );
+
+        assertEquals(
+                r5Voltage,
+                r5.getElectricalState().voltage(),
+                DELTA
+        );
+
+        assertEquals(
+                r5Current,
+                r5.getElectricalState().current(),
+                DELTA
+        );
+
+        /*
+         * Corrente da fonte:
+         *
+         * Isource = I1 + I3
+         */
+        assertEquals(
+                totalCurrent,
+                r1Current + r3Current,
+                DELTA
+        );
+
+        /*
+         * Kirchhoff no NODE A:
+         *
+         * I1 = I2 + I5
+         */
+        assertEquals(
+                r1Current,
+                r2Current + r5Current,
+                DELTA
+        );
+
+        /*
+         * Kirchhoff no NODE B:
+         *
+         * I3 + I5 = I4
+         */
+        assertEquals(
+                r4Current,
+                r3Current + r5Current,
+                DELTA
+        );
+    }
 }

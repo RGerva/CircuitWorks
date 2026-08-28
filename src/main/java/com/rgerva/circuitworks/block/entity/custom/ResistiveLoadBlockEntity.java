@@ -50,65 +50,23 @@ public class ResistiveLoadBlockEntity extends BlockEntity {
         return loadComponent;
     }
 
+    public double getResistance() {
+        return loadComponent.getResistance();
+    }
+
+    public void setResistance(double resistance) {
+        loadComponent.setResistance(resistance);
+        setChanged();
+    }
+
     @Override
     public void onLoad() {
         super.onLoad();
         ensureElectricalRegistration();
-//        if (!(level instanceof ServerLevel serverLevel)) {
-//            return;
-//        }
-//
-//        Direction terminalADirection =
-//                getBlockState().getValue(ResistiveLoadBlock.FACING);
-//
-//        Direction terminalBDirection =
-//                terminalADirection.getOpposite();
-//
-//        ElectricalNetworkManager manager =
-//                ElectricalNetworkManager.get(serverLevel);
-//
-//        manager.registerLoad(
-//                worldPosition,
-//                loadComponent,
-//                terminalADirection,
-//                terminalBDirection
-//        );
-//
-//        ElectricalWorldNetwork network =
-//                manager.getElectricalWorldNetworkAt(worldPosition)
-//                        .orElseThrow();
-//
-//        CircuitWorks.LOGGER.info(
-//                "[Electrical] Resistive load loaded at {} | R={} ohm | T={} C | status={} | A={} | B={} | loads={} | worldNetwork=#{} | wires={} | sources={} | networkLoads={}",
-//                worldPosition.toShortString(),
-//                loadComponent.getResistance(),
-//                String.format(Locale.ROOT, "%.2f", loadComponent.getThermalState().temperatureCelsius()),
-//                loadComponent.getOperationalStatus(),
-//                terminalADirection,
-//                terminalBDirection,
-//                manager.getLoadCount(),
-//                network.id(),
-//                network.getWireCount(),
-//                network.getSourceCount(),
-//                network.getLoadCount()
-//        );
     }
 
     @Override
     public void setRemoved() {
-//        if (level instanceof ServerLevel serverLevel) {
-//            ElectricalNetworkManager manager =
-//                    ElectricalNetworkManager.get(serverLevel);
-//
-//            manager.unregisterLoad(worldPosition);
-//
-//            CircuitWorks.LOGGER.info(
-//                    "[Electrical] Resistive load removed at {} | loads={}",
-//                    worldPosition.toShortString(),
-//                    manager.getLoadCount()
-//            );
-//        }
-
         unregisterElectrical();
         super.setRemoved();
     }

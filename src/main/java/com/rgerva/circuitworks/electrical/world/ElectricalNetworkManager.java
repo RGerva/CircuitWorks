@@ -733,11 +733,18 @@ public final class ElectricalNetworkManager {
             }
 
             ElectricalNetwork electricalNetwork =
-                    WorldCircuitResolver.buildElectricalNetwork(
-                            this,
-                            worldNetwork,
-                            circuit.componentPath()
-                    );
+                    WorldCircuitResolver
+                            .tryBuildGraphElectricalNetwork(
+                                    this,
+                                    worldNetwork
+                            )
+                            .orElseGet(() ->
+                                    WorldCircuitResolver.buildElectricalNetwork(
+                                            this,
+                                            worldNetwork,
+                                            circuit.componentPath()
+                                    )
+                            );
 
             ElectricalSimulation simulation =
                     new ElectricalSimulation(electricalNetwork);

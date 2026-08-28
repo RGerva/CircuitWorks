@@ -188,4 +188,51 @@ class ResistiveLoadComponentTest {
                 DELTA
         );
     }
+
+    @Test
+    void resistanceCanBeChangedAtRuntime() {
+        ResistiveLoadComponent load =
+                new ResistiveLoadComponent(10.0);
+
+        load.setResistance(20.0);
+
+        assertEquals(
+                20.0,
+                load.getResistance(),
+                DELTA
+        );
+    }
+
+    @Test
+    void resistanceCannotBeZero() {
+        ResistiveLoadComponent load =
+                new ResistiveLoadComponent(10.0);
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> load.setResistance(0.0)
+        );
+    }
+
+    @Test
+    void resistanceCannotBeNegative() {
+        ResistiveLoadComponent load =
+                new ResistiveLoadComponent(10.0);
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> load.setResistance(-1.0)
+        );
+    }
+
+    @Test
+    void resistanceCannotBeNaN() {
+        ResistiveLoadComponent load =
+                new ResistiveLoadComponent(10.0);
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> load.setResistance(Double.NaN)
+        );
+    }
 }

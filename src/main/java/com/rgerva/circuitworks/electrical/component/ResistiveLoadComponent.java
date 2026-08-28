@@ -25,7 +25,7 @@ import java.util.Objects;
 
 public class ResistiveLoadComponent implements IResistiveComponent, IOperationalComponent, IThermalComponent {
 
-    private final double resistance;
+    private double resistance;
 
     private final ElectricalPort terminalA =
             new ElectricalPort("terminal_a", ElectricalPortType.BIDIRECTIONAL);
@@ -63,7 +63,7 @@ public class ResistiveLoadComponent implements IResistiveComponent, IOperational
             throw new IllegalArgumentException("Resistance must be finite and > EPSILON.");
         }
 
-        this.resistance = resistance;
+        this.resistance = validateResistance(resistance);
         this.thermalProperties = Objects.requireNonNull(thermalProperties);
         this.thermalLimits = Objects.requireNonNull(thermalLimits);
         this.thermalState = new ThermalState(initialTemperature);
@@ -72,6 +72,17 @@ public class ResistiveLoadComponent implements IResistiveComponent, IOperational
         if (!operationalStatus.isOperational()) {
             this.state = ElectricalState.ZERO;
         }
+    }
+
+    private static double validateResistance(double resistance) {
+        if (!Double.isFinite(resistance) || resistance <= 0.0) {
+            throw new IllegalArgumentException("Resistance must be finite and greater than zero.");
+        }
+        return resistance;
+    }
+
+    public void setResistance(double resistance) {
+        this.resistance = validateResistance(resistance);
     }
 
     @Override
